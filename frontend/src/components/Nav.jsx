@@ -10,6 +10,8 @@ import { userDataContext } from '../context/userContext';
 import { authDataContext } from '../context/AuthContext';
 import axios from 'axios';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { IoChatbubbleEllipsesSharp } from "react-icons/io5";
+import { MdWork } from "react-icons/md";
 
 function Nav() {
     const [activeSearch, setActiveSearch] = useState(false)
@@ -124,6 +126,28 @@ function Nav() {
                     <FaUserGroup className='w-[23px] h-[23px]' />
                     <span className='text-sm'>My Networks</span>
                 </div>
+
+
+                <div
+    className={`flex flex-col items-center cursor-pointer ${
+        isActive("/chat") ? "text-yellow-400 font-semibold" : "text-gray-300"
+    }`}
+    onClick={() => navigate("/chat")}
+>
+    <IoChatbubbleEllipsesSharp className='w-[23px] h-[23px]' />
+    <span className='hidden md:block text-sm'>Chat</span>
+</div>
+
+<div
+  className={`flex flex-col items-center cursor-pointer ${
+    isActive("/jobs") ? "text-yellow-400 font-semibold" : "text-gray-300"
+  }`}
+  onClick={() => navigate("/jobs")}
+>
+  <MdWork className="w-[23px] h-[23px]" />
+  <span className="hidden md:block text-sm">Jobs</span>
+</div>
+
                 <div
                     className={`flex flex-col items-center cursor-pointer ${isActive("/notification") ? "text-yellow-400 font-semibold" : "text-gray-300"}`}
                     onClick={() => navigate("/notification")}
