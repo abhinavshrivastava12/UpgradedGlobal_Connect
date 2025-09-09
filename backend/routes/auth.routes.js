@@ -1,10 +1,27 @@
 import express from "express"
-import { login, logOut, signUp } from "../controllers/auth.controllers.js"
+import { 
+  sendSignUpOTP, 
+  verifySignUpOTP, 
+  sendLoginOTP, 
+  verifyLoginOTP, 
+  logOut,
+  resendOTP
+} from "../controllers/auth.controllers.js"
 
-let authRouter=express.Router()
+let authRouter = express.Router()
 
-authRouter.post("/signup",signUp)
-authRouter.post("/login",login)
-authRouter.get("/logout",logOut)
+// SignUp routes
+authRouter.post("/send-signup-otp", sendSignUpOTP)
+authRouter.post("/verify-signup-otp", verifySignUpOTP)
+
+// Login routes  
+authRouter.post("/send-login-otp", sendLoginOTP)
+authRouter.post("/verify-login-otp", verifyLoginOTP)
+
+// Resend OTP
+authRouter.post("/resend-otp", resendOTP)
+
+// Logout
+authRouter.get("/logout", logOut)
 
 export default authRouter

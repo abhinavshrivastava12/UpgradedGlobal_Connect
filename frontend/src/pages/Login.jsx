@@ -1,169 +1,303 @@
-// import React, { useContext, useState } from 'react'
-// import logo from "../assets/GCF.jpg"
-// import {useNavigate} from "react-router-dom"
-// import { authDataContext } from '../context/AuthContext'
-// import axios from "axios"
-// import { userDataContext } from '../context/userContext'
-// function Login() {
-//   let [show,setShow]=useState(false)
-//   let {serverUrl}=useContext(authDataContext)
-//   let {userData,setUserData}=useContext(userDataContext)
-//   let navigate=useNavigate()
-//   let [email,setEmail]=useState("")
-//   let [password,setPassword]=useState("")
-//   let [loading,setLoading]=useState(false)
-//   let [err,setErr]=useState("")
-
-//   const handleSignIn=async (e)=>{
-//     e.preventDefault()
-//     setLoading(true)
-//     try {
-//       let result = await axios.post(serverUrl+"/api/auth/login",{
-// email,
-// password
-//       },{withCredentials:true})
-//       setUserData(result.data)
-//       navigate("/")
-//       setErr("")
-//       setLoading(false)
-//       setEmail("")
-//       setPassword("")
-//     } catch (error) {
-//       setErr(error.response.data.message)
-//       setLoading(false)
-//     }
-//   }
-//   return (
-//     <div className='w-full h-screen bg-[white] flex flex-col items-center justify-start gap-[10px]'>
-//    <div className='p-[30px] lg:p-[35px] w-full h-[80px] flex items-center' >
-//     <img src={logo} alt="" />
-//    </div>
-//    <form className='w-[90%] max-w-[400px] h-[600px] md:shadow-xl flex flex-col justify-center  gap-[10px] p-[15px]' onSubmit={handleSignIn}>
-//     <h1 className='text-gray-800 text-[30px] font-semibold mb-[30px]'>Sign In</h1>
-   
-//     <input type="email" placeholder='email' required className='w-[100%] h-[50px] border-2 border-gray-600 text-gray-800 text-[18px] px-[20px] py-[10px] rounded-md' value={email} onChange={(e)=>setEmail(e.target.value)}/>
-//     <div className='w-[100%] h-[50px] border-2 border-gray-600 text-gray-800 text-[18px]  rounded-md relative'>
-//     <input type={show?"text":"password"} placeholder='password' required className='w-full h-fullborder-none text-gray-800 text-[18px] px-[20px] py-[10px] rounded-md' value={password} onChange={(e)=>setPassword(e.target.value)}/>
-//     <span className='absolute right-[20px] top-[10px] text-[#24b2ff] cursor-pointer font-semibold' onClick={()=>setShow(prev=>!prev)}>{show?"hidden":"show"}</span>
-//     </div>
-//    {err && <p className='text-center text-red-500'>
-//     *{err}
-//     </p>}
-//     <button className='w-[100%] h-[50px] rounded-full bg-[#24b2ff] mt-[40px] text-white' disabled={loading}>{loading?"Loading...":"Sign In"}</button>
-//     <p className='text-center cursor-pointer' onClick={()=>navigate("/signup")}>want to create a new account ? <span className='text-[#2a9bd8]' >Sign Up</span></p>
-//    </form>
-//     </div>
-//   )
-// }
-
-// export default Login
-
-import React, { useContext, useState } from 'react';
-import logo from "../assets/GCF.jpg";
-import { useNavigate } from "react-router-dom";
-import { authDataContext } from '../context/AuthContext';
-import axios from "axios";
-import { userDataContext } from '../context/userContext';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Mail,
+  ArrowRight,
+  CheckCircle,
+  AlertCircle,
+  RefreshCw,
+  LogIn,
+  Shield
+} from 'lucide-react';
 
 function Login() {
-  let [show, setShow] = useState(false);
-  let { serverUrl } = useContext(authDataContext);
-  let { setUserData } = useContext(userDataContext);
-  let navigate = useNavigate();
-  let [email, setEmail] = useState("");
-  let [password, setPassword] = useState("");
-  let [loading, setLoading] = useState(false);
-  let [err, setErr] = useState("");
+  const navigate = useNavigate();
+  const [step, setStep] = useState(1);
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const [success, setSuccess] = useState("");
+  const [resendLoading, setResendLoading] = useState(false);
 
-  const handleSignIn = async (e) => {
+  const handleSendOTP = async (e) => {
     e.preventDefault();
+    if (!email) {
+      setErr("Please enter your email address");
+      return;
+    }
+
     setLoading(true);
+    setErr("");
+
     try {
-      let result = await axios.post(
-        serverUrl + "/api/auth/login",
-        { email, password },
-        { withCredentials: true }
-      );
-      setUserData(result.data);
-      navigate("/");
-      setErr("");
-      setLoading(false);
-      setEmail("");
-      setPassword("");
+      // Replace with your actual API call
+      // const result = await axios.post(`${serverUrl}/api/auth/send-login-otp`, { email }, { withCredentials: true });
+
+      // Simulate API call
+      setTimeout(() => {
+        setSuccess("OTP sent to your email!");
+        setStep(2);
+        setLoading(false);
+      }, 2000);
+
     } catch (error) {
-      setErr(error.response?.data?.message || "Something went wrong");
+      setErr("Failed to send OTP");
       setLoading(false);
     }
   };
 
+  const handleOtpChange = (index, value) => {
+    if (value.length <= 1) {
+      const newOtp = [...otp];
+      newOtp[index] = value;
+      setOtp(newOtp);
+
+      // Auto focus next input
+      if (value && index < 5) {
+        const nextInput = document.querySelector(`input[name="login-otp-${index + 1}"]`);
+        if (nextInput) nextInput.focus();
+      }
+    }
+  };
+
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+    const otpString = otp.join("");
+
+    if (otpString.length !== 6) {
+      setErr("Please enter complete OTP");
+      return;
+    }
+
+    setLoading(true);
+    setErr("");
+
+    try {
+      // Replace with your actual API call
+      // const result = await axios.post(`${serverUrl}/api/auth/verify-login-otp`, { email, otp: otpString }, { withCredentials: true });
+
+      // Simulate API call
+      setTimeout(() => {
+        if (otpString === "123456") {
+          setSuccess("Login successful!");
+          setLoading(false);
+          // setTimeout(() => navigate("/"), 1500);
+        } else {
+          setErr("Invalid OTP");
+          setLoading(false);
+        }
+      }, 2000);
+
+    } catch (error) {
+      setErr("Invalid OTP");
+      setLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    setResendLoading(true);
+    try {
+      // Replace with your actual API call
+      // await axios.post(`${serverUrl}/api/auth/resend-otp`, { email, type: 'login' }, { withCredentials: true });
+
+      // Simulate API call
+      setTimeout(() => {
+        setSuccess("OTP resent successfully!");
+        setOtp(["", "", "", "", "", ""]);
+        setResendLoading(false);
+      }, 1500);
+
+    } catch (error) {
+      setErr("Failed to resend OTP");
+      setResendLoading(false);
+    }
+  };
+
+  const navigateToSignup = () => {
+    navigate("/signup");
+  };
+
+  const goBackToEmail = () => {
+    setStep(1);
+    setOtp(["", "", "", "", "", ""]);
+    setErr("");
+    setSuccess("");
+  };
+
   return (
-    <div className="w-full min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-6">
-      {/* Logo */}
-      <div className="flex justify-center">
-        <img src={logo} alt="Logo" className="h-[150px] object-contain" />
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 flex items-center justify-center p-4">
+      {/* Background decorations */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-100 rounded-full opacity-20 blur-3xl"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-pink-100 rounded-full opacity-20 blur-3xl"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-50 rounded-full opacity-10 blur-3xl"></div>
       </div>
 
-      {/* Login Form */}
-      <form
-        className="w-[90%] max-w-[400px] bg-white shadow-lg rounded-xl px-6 py-8 flex flex-col gap-4"
-        onSubmit={handleSignIn}
-      >
-        <h1 className="text-gray-800 text-3xl font-bold mb-4 text-center">Sign In</h1>
-
-        {/* Email */}
-        <input
-          type="email"
-          placeholder="Email"
-          required
-          className="w-full h-[50px] border border-gray-300 focus:border-[#24b2ff] focus:ring-2 focus:ring-[#24b2ff] outline-none text-gray-800 text-[16px] px-4 rounded-lg transition-all"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-
-        {/* Password */}
-        <div className="w-full h-[50px] border border-gray-300 focus-within:border-[#24b2ff] focus-within:ring-2 focus-within:ring-[#24b2ff] rounded-lg relative transition-all">
-          <input
-            type={show ? "text" : "password"}
-            placeholder="Password"
-            required
-            className="w-full h-full outline-none text-gray-800 text-[16px] px-4 pr-16 rounded-lg"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <span
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#24b2ff] cursor-pointer font-medium text-sm select-none hover:underline"
-            onClick={() => setShow((prev) => !prev)}
-          >
-            {show ? "Hide" : "Show"}
-          </span>
+      <div className="relative w-full max-w-md">
+        {/* Step indicator */}
+        <div className="flex justify-center mb-8">
+          <div className="flex items-center space-x-4">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
+              step >= 1 ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/30' : 'bg-gray-200 text-gray-500'
+            }`}>
+              1
+            </div>
+            <div className={`w-12 h-0.5 transition-all ${step >= 2 ? 'bg-purple-500' : 'bg-gray-200'}`}></div>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
+              step >= 2 ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/30' : 'bg-gray-200 text-gray-500'
+            }`}>
+              2
+            </div>
+          </div>
         </div>
 
-        {/* Error */}
-        {err && (
-          <p className="text-center text-red-500 text-sm font-medium mt-1">
-            *{err}
-          </p>
-        )}
+        {/* Main card */}
+        <div className="bg-white/70 backdrop-blur-xl border border-white/20 rounded-3xl shadow-2xl p-8">
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-purple-500/30">
+              {step === 1 ? (
+                <LogIn className="w-10 h-10 text-white" />
+              ) : (
+                <Shield className="w-10 h-10 text-white" />
+              )}
+            </div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+              {step === 1 ? 'Welcome Back' : 'Verify Identity'}
+            </h1>
+            <p className="text-gray-600 mt-2">
+              {step === 1 ? 'Sign in to your account' : `Enter the 6-digit code sent to ${email}`}
+            </p>
+          </div>
 
-        {/* Submit */}
-        <button
-          className="w-full h-[50px] rounded-full bg-[#24b2ff] hover:bg-[#1d9be0] transition-all text-white font-semibold mt-6 disabled:opacity-60 disabled:cursor-not-allowed"
-          disabled={loading}
-        >
-          {loading ? "Loading..." : "Sign In"}
-        </button>
+          {/* Success message */}
+          {success && (
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center space-x-3 animate-pulse">
+              <CheckCircle className="w-5 h-5 text-green-500" />
+              <p className="text-green-700 text-sm">{success}</p>
+            </div>
+          )}
 
-        {/* Sign Up Link */}
-        <p className="text-center text-gray-600 mt-4">
-          Don’t have an account?{" "}
-          <span
-            className="text-[#24b2ff] font-medium cursor-pointer hover:underline"
-            onClick={() => navigate("/signup")}
-          >
-            Sign Up
-          </span>
-        </p>
-      </form>
+          {/* Error message */}
+          {err && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center space-x-3 animate-pulse">
+              <AlertCircle className="w-5 h-5 text-red-500" />
+              <p className="text-red-700 text-sm">{err}</p>
+            </div>
+          )}
+
+          {step === 1 ? (
+            /* Step 1: Email Input */
+            <div className="space-y-6">
+              <div className="relative group">
+                <input
+                  type="email"
+                  placeholder="Enter your email address"
+                  required
+                  className="w-full h-14 pl-12 pr-4 bg-white/50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all group-hover:shadow-md text-lg"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (err) setErr("");
+                  }}
+                />
+                <Mail className="absolute left-4 top-4.5 w-5 h-5 text-gray-400 transition-colors group-focus-within:text-purple-500" />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSendOTP}
+                disabled={loading}
+                className="w-full h-14 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all transform hover:scale-[1.02] hover:shadow-lg hover:shadow-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2 text-lg"
+              >
+                {loading ? (
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <span>Send OTP</span>
+                    <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
+              </button>
+            </div>
+          ) : (
+            /* Step 2: OTP Verification */
+            <div className="space-y-6">
+              <div className="flex justify-center space-x-3">
+                {otp.map((digit, index) => (
+                  <input
+                    key={index}
+                    type="text"
+                    name={`login-otp-${index}`}
+                    maxLength="1"
+                    className="w-12 h-12 text-center text-xl font-bold bg-white/50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all hover:shadow-md"
+                    value={digit}
+                    onChange={(e) => handleOtpChange(index, e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Backspace' && !digit && index > 0) {
+                        const prevInput = document.querySelector(`input[name="login-otp-${index - 1}"]`);
+                        if (prevInput) prevInput.focus();
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleVerifyOTP}
+                disabled={loading}
+                className="w-full h-14 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all transform hover:scale-[1.02] hover:shadow-lg hover:shadow-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2 text-lg"
+              >
+                {loading ? (
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                ) : (
+                  <span>Verify & Sign In</span>
+                )}
+              </button>
+
+              <div className="text-center space-y-3">
+                <p className="text-gray-600 text-sm">Didn't receive the code?</p>
+                <div className="flex justify-center space-x-4">
+                  <button
+                    type="button"
+                    onClick={handleResendOTP}
+                    disabled={resendLoading}
+                    className="text-purple-500 hover:text-purple-600 font-medium text-sm flex items-center space-x-1 transition-colors hover:underline"
+                  >
+                    {resendLoading ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <span>Resend OTP</span>
+                    )}
+                  </button>
+                  <span className="text-gray-300">|</span>
+                  <button
+                    type="button"
+                    onClick={goBackToEmail}
+                    className="text-gray-500 hover:text-gray-600 font-medium text-sm transition-colors hover:underline"
+                  >
+                    Change Email
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Sign up link */}
+          <div className="mt-8 text-center">
+            <p className="text-gray-600">
+              Don't have an account?{" "}
+              <button
+                onClick={navigateToSignup}
+                className="text-purple-500 hover:text-purple-600 font-medium transition-colors hover:underline"
+              >
+                Sign Up
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
