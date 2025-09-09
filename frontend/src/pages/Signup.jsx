@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   User,
@@ -11,9 +11,15 @@ import {
   AlertCircle,
   RefreshCw
 } from 'lucide-react';
+import axios from 'axios';
+import { authDataContext } from '../context/AuthContext';
+import { userDataContext } from '../context/userContext';
 
 function Signup() {
   const navigate = useNavigate();
+  const { serverUrl } = useContext(authDataContext);
+  const { setUserData } = useContext(userDataContext);
+  
   const [step, setStep] = useState(1);
   const [show, setShow] = useState(false);
 
@@ -41,20 +47,15 @@ function Signup() {
     e.preventDefault();
     setLoading(true);
     setErr("");
+    setSuccess("");
 
     try {
-      // Replace with your actual API call
-      // const result = await axios.post(`${serverUrl}/api/auth/send-signup-otp`, formData, { withCredentials: true });
-
-      // Simulate API call
-      setTimeout(() => {
-        setSuccess("OTP sent to your email!");
-        setStep(2);
-        setLoading(false);
-      }, 2000);
-
+      await axios.post(`${serverUrl}/api/auth/send-signup-otp`, formData, { withCredentials: true });
+      setSuccess("OTP sent to your email!");
+      setStep(2);
     } catch (error) {
-      setErr("Failed to send OTP");
+      setErr(error.response?.data?.message || "Failed to send OTP");
+    } finally {
       setLoading(false);
     }
   };
@@ -76,52 +77,47 @@ function Signup() {
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
     const otpString = otp.join("");
-
     if (otpString.length !== 6) {
-      setErr("Please enter complete OTP");
+      setErr("Please enter a complete 6-digit OTP");
       return;
     }
 
     setLoading(true);
     setErr("");
+    setSuccess("");
 
     try {
-      // Replace with your actual API call
-      // const result = await axios.post(`${serverUrl}/api/auth/verify-signup-otp`, { email: formData.email, otp: otpString }, { withCredentials: true });
-
-      // Simulate API call
-      setTimeout(() => {
-        if (otpString === "123456") {
-          setSuccess("Account created successfully!");
-          setLoading(false);
-          // setTimeout(() => navigate("/"), 1500);
-        } else {
-          setErr("Invalid OTP");
-          setLoading(false);
-        }
-      }, 2000);
-
+      const result = await axios.post(
+        `${serverUrl}/api/auth/verify-signup-otp`,
+        { email: formData.email, otp: otpString },
+        { withCredentials: true }
+      );
+      setSuccess(result.data.message);
+      setUserData(result.data.user);
+      navigate("/");
     } catch (error) {
-      setErr("Invalid OTP");
+      setErr(error.response?.data?.message || "Invalid OTP or verification failed");
+    } finally {
       setLoading(false);
     }
   };
 
   const handleResendOTP = async () => {
     setResendLoading(true);
+    setErr("");
+    setSuccess("");
+
     try {
-      // Replace with your actual API call
-      // await axios.post(`${serverUrl}/api/auth/resend-otp`, { email: formData.email, type: 'signup' }, { withCredentials: true });
-
-      // Simulate API call
-      setTimeout(() => {
-        setSuccess("OTP resent successfully!");
-        setOtp(["", "", "", "", "", ""]);
-        setResendLoading(false);
-      }, 1500);
-
+      await axios.post(
+        `${serverUrl}/api/auth/resend-otp`,
+        { email: formData.email, type: 'signup' },
+        { withCredentials: true }
+      );
+      setSuccess("OTP resent successfully!");
+      setOtp(["", "", "", "", "", ""]);
     } catch (error) {
-      setErr("Failed to resend OTP");
+      setErr(error.response?.data?.message || "Failed to resend OTP");
+    } finally {
       setResendLoading(false);
     }
   };

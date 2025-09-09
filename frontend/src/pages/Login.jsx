@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Mail,
@@ -9,9 +9,15 @@ import {
   LogIn,
   Shield
 } from 'lucide-react';
+import axios from 'axios';
+import { authDataContext } from '../context/AuthContext';
+import { userDataContext } from '../context/userContext';
 
 function Login() {
   const navigate = useNavigate();
+  const { serverUrl } = useContext(authDataContext);
+  const { setUserData } = useContext(userDataContext);
+  
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
@@ -29,20 +35,15 @@ function Login() {
 
     setLoading(true);
     setErr("");
+    setSuccess("");
 
     try {
-      // Replace with your actual API call
-      // const result = await axios.post(`${serverUrl}/api/auth/send-login-otp`, { email }, { withCredentials: true });
-
-      // Simulate API call
-      setTimeout(() => {
-        setSuccess("OTP sent to your email!");
-        setStep(2);
-        setLoading(false);
-      }, 2000);
-
+      await axios.post(`${serverUrl}/api/auth/send-login-otp`, { email }, { withCredentials: true });
+      setSuccess("OTP sent to your email!");
+      setStep(2);
     } catch (error) {
-      setErr("Failed to send OTP");
+      setErr(error.response?.data?.message || "Failed to send OTP");
+    } finally {
       setLoading(false);
     }
   };
@@ -53,7 +54,6 @@ function Login() {
       newOtp[index] = value;
       setOtp(newOtp);
 
-      // Auto focus next input
       if (value && index < 5) {
         const nextInput = document.querySelector(`input[name="login-otp-${index + 1}"]`);
         if (nextInput) nextInput.focus();
@@ -64,52 +64,47 @@ function Login() {
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
     const otpString = otp.join("");
-
     if (otpString.length !== 6) {
-      setErr("Please enter complete OTP");
+      setErr("Please enter a complete 6-digit OTP");
       return;
     }
 
     setLoading(true);
     setErr("");
+    setSuccess("");
 
     try {
-      // Replace with your actual API call
-      // const result = await axios.post(`${serverUrl}/api/auth/verify-login-otp`, { email, otp: otpString }, { withCredentials: true });
-
-      // Simulate API call
-      setTimeout(() => {
-        if (otpString === "123456") {
-          setSuccess("Login successful!");
-          setLoading(false);
-          // setTimeout(() => navigate("/"), 1500);
-        } else {
-          setErr("Invalid OTP");
-          setLoading(false);
-        }
-      }, 2000);
-
+      const result = await axios.post(
+        `${serverUrl}/api/auth/verify-login-otp`,
+        { email, otp: otpString },
+        { withCredentials: true }
+      );
+      setSuccess(result.data.message);
+      setUserData(result.data.user);
+      navigate("/");
     } catch (error) {
-      setErr("Invalid OTP");
+      setErr(error.response?.data?.message || "Invalid OTP or login failed");
+    } finally {
       setLoading(false);
     }
   };
 
   const handleResendOTP = async () => {
     setResendLoading(true);
+    setErr("");
+    setSuccess("");
+
     try {
-      // Replace with your actual API call
-      // await axios.post(`${serverUrl}/api/auth/resend-otp`, { email, type: 'login' }, { withCredentials: true });
-
-      // Simulate API call
-      setTimeout(() => {
-        setSuccess("OTP resent successfully!");
-        setOtp(["", "", "", "", "", ""]);
-        setResendLoading(false);
-      }, 1500);
-
+      await axios.post(
+        `${serverUrl}/api/auth/resend-otp`,
+        { email, type: 'login' },
+        { withCredentials: true }
+      );
+      setSuccess("OTP resent successfully!");
+      setOtp(["", "", "", "", "", ""]);
     } catch (error) {
-      setErr("Failed to resend OTP");
+      setErr(error.response?.data?.message || "Failed to resend OTP");
+    } finally {
       setResendLoading(false);
     }
   };
@@ -127,7 +122,6 @@ function Login() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 flex items-center justify-center p-4">
-      {/* Background decorations */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-100 rounded-full opacity-20 blur-3xl"></div>
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-pink-100 rounded-full opacity-20 blur-3xl"></div>
@@ -135,7 +129,6 @@ function Login() {
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Step indicator */}
         <div className="flex justify-center mb-8">
           <div className="flex items-center space-x-4">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
@@ -152,7 +145,6 @@ function Login() {
           </div>
         </div>
 
-        {/* Main card */}
         <div className="bg-white/70 backdrop-blur-xl border border-white/20 rounded-3xl shadow-2xl p-8">
           <div className="text-center mb-8">
             <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-purple-500/30">
@@ -170,7 +162,6 @@ function Login() {
             </p>
           </div>
 
-          {/* Success message */}
           {success && (
             <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center space-x-3 animate-pulse">
               <CheckCircle className="w-5 h-5 text-green-500" />
@@ -178,7 +169,6 @@ function Login() {
             </div>
           )}
 
-          {/* Error message */}
           {err && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center space-x-3 animate-pulse">
               <AlertCircle className="w-5 h-5 text-red-500" />
@@ -187,7 +177,6 @@ function Login() {
           )}
 
           {step === 1 ? (
-            /* Step 1: Email Input */
             <div className="space-y-6">
               <div className="relative group">
                 <input
@@ -221,7 +210,6 @@ function Login() {
               </button>
             </div>
           ) : (
-            /* Step 2: OTP Verification */
             <div className="space-y-6">
               <div className="flex justify-center space-x-3">
                 {otp.map((digit, index) => (
@@ -284,7 +272,6 @@ function Login() {
             </div>
           )}
 
-          {/* Sign up link */}
           <div className="mt-8 text-center">
             <p className="text-gray-600">
               Don't have an account?{" "}
