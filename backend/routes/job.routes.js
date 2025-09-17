@@ -1,31 +1,21 @@
-import express from "express";
-import Job from "../models/Job.js";
+import { Router } from "express";
+import {
+  addJob,
+  getJobs,
+  deleteJob,
+  applyJob
+} from "../controllers/job.controller.js";
+import upload from "../middlewares/multer.js";
+import isAuth from "../middlewares/isAuth.js";
 
-const router = express.Router();
+const router = Router();
 
-// Add Job
-router.post("/add", async (req, res) => {
-  try {
-    const { title, company, location, description } = req.body;
-    if (!title || !company || !location || !description) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
-    const job = new Job({ title, company, location, description });
-    await job.save();
-    res.json({ message: "Job added successfully", job });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
+// Existing routes pointing to the new controller
+router.post("/add", isAuth, addJob);
+router.get("/", getJobs);
+router.delete("/:id", isAuth, deleteJob);
 
-// Get all jobs
-router.get("/", async (req, res) => {
-  try {
-    const jobs = await Job.find().sort({ datePosted: -1 });
-    res.json(jobs);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
+// New route for job applications
+router.post("/apply", isAuth, upload.single('resume'), applyJob);
 
 export default router;

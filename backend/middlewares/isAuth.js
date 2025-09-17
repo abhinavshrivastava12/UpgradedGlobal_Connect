@@ -1,24 +1,57 @@
-import jwt from "jsonwebtoken"
-import dotenv from "dotenv"
-dotenv.config()
-const isAuth=async (req,res,next)=>{
-    try {
-        let {token}=req.cookies
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+dotenv.config();
 
-        if(!token){
-            return res.status(400).json({message:"user doesn't have token"})
-        }
-        let verifyToken= jwt.verify(token,process.env.JWT_SECRET)
-        if(!verifyToken){
-            return res.status(400).json({message:"user doesn't have valid token"})
+const isAuth = async (req, res, next) => {
+    try {
+        let token = null;
+        
+        console.log("Auth middleware - Checking authentication");
+        console.log("Cookies:", req.cookies);
+        console.log("Authorization header:", req.headers.authorization);
+        
+        // Try to get token from cookies first
+        if (req.cookies && req.cookies.token) {
+            token = req.cookies.token;
+            console.log("Token found in cookies");
         }
         
-        req.userId=verifyToken.userId
-        next()
+        // If no token in cookies, try Authorization header
+        if (!token && req.headers.authorization) {
+            const authHeader = req.headers.authorization;
+            if (authHeader.startsWith('Bearer ')) {
+                token = authHeader.substring(7); // Remove 'Bearer ' prefix
+                console.log("Token found in Authorization header");
+            }
+        }
+        
+        if (!token) {
+            console.log("No token found in cookies or headers");
+            return res.status(401).json({ message: "No authentication token provided" });
+        }
+        
+        const verifyToken = jwt.verify(token, process.env.JWT_SECRET);
+        if (!verifyToken) {
+            return res.status(401).json({ message: "Invalid authentication token" });
+        }
+        
+        console.log("Token verified successfully for user:", verifyToken.userId);
+        req.userId = verifyToken.userId;
+        req.user = verifyToken; // Store full token payload if needed
+        next();
     } catch (error) {
-        console.log(error)
-        return res.status(500).json({message:"is auth error"})
+        console.log("Auth middleware error:", error.message);
+        
+        // Handle specific JWT errors
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(401).json({ message: "Invalid token format" });
+        }
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({ message: "Token has expired" });
+        }
+        
+        return res.status(500).json({ message: "Authentication error" });
     }
-}
+};
 
-export default isAuth
+export default isAuth;

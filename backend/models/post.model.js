@@ -1,41 +1,42 @@
-import mongoose from "mongoose"
+import mongoose from "mongoose";
 
-const postSchema=new mongoose.Schema({
-    author:{
-        type: mongoose.Schema.Types.ObjectId,
-        ref:"User",
-        required:true
-    },
-    description:{
-        type:String,
-        default:""
-    },
-    image:{
-        type:String
-    },
-    like:[
-        {
-            type: mongoose.Schema.Types.ObjectId,
-            ref:"User"
-        }
-    ],
-    comment:[
-        {
-            content:{type:String},
-            user:{
-                type: mongoose.Schema.Types.ObjectId,
-                ref:"User" 
-            }
-        }
-    ],
-    // New field for reposting:
-    repostOf: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Post",
-        default: null
+const postSchema = new mongoose.Schema({
+  author: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true
+  },
+  description: {
+    type: String,
+    default: ""
+  },
+  image: {
+    type: String
+  },
+  like: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
     }
+  ],
+  comment: [
+    {
+      content: { type: String },
+      user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+      }
+    }
+  ],
+  // New field for reposting
+  repostOf: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Post",
+    default: null
+  }
+}, { timestamps: true });
 
-},{timestamps:true})
+// ✅ Prevent OverwriteModelError
+const Post = mongoose.models.Post || mongoose.model("Post", postSchema);
 
-const Post=mongoose.model("Post",postSchema)
-export default Post
+export default Post;

@@ -26,7 +26,7 @@ const celebritySuggestions = [
   },
   {
     firstName: "Oprah",
-    lastName: "Winfrey", 
+    lastName: "Winfrey",
     userName: "oprah",
     headline: "Media Mogul • Philanthropist • Author",
     profileImage: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=100&h=100&fit=crop&crop=face",
@@ -78,6 +78,11 @@ function Home() {
   const [postType, setPostType] = useState('text'); // text, poll, image
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [likedPosts, setLikedPosts] = useState(new Set());
+  const [userStats, setUserStats] = useState({
+    followers: 0,
+    following: 0,
+    posts: 0
+  });
 
   const image = useRef();
 
@@ -111,6 +116,7 @@ function Home() {
       setPostType('text');
       setPollOptions(['', '']);
       getPost();
+      fetchUserStats(); // Refresh stats after new post
     } catch (error) {
       setPosting(false);
       console.log(error);
@@ -129,6 +135,19 @@ function Home() {
       console.log(error);
       // Fallback to celebrities only
       setSuggestedUser(celebritySuggestions.slice(0, 5));
+    }
+  };
+
+  // Fetch real user statistics
+  const fetchUserStats = async () => {
+    try {
+      const response = await axios.get(serverUrl + "/api/user/stats", {
+        withCredentials: true,
+      });
+      setUserStats(response.data);
+    } catch (error) {
+      console.log("Error fetching user stats:", error);
+      // Keep default values if API fails
     }
   };
 
@@ -151,25 +170,36 @@ function Home() {
     }
   };
 
-  const toggleLike = (postId) => {
-    const newLikedPosts = new Set(likedPosts);
-    if (newLikedPosts.has(postId)) {
-      newLikedPosts.delete(postId);
-    } else {
-      newLikedPosts.add(postId);
+  const toggleLike = async (postId) => {
+    try {
+      await axios.post(serverUrl + `/api/post/like/${postId}`, {}, {
+        withCredentials: true,
+      });
+      // Update local state
+      const newLikedPosts = new Set(likedPosts);
+      if (newLikedPosts.has(postId)) {
+        newLikedPosts.delete(postId);
+      } else {
+        newLikedPosts.add(postId);
+      }
+      setLikedPosts(newLikedPosts);
+      // Refresh posts to get updated counts
+      getPost();
+    } catch (error) {
+      console.log("Error toggling like:", error);
     }
-    setLikedPosts(newLikedPosts);
   };
 
   useEffect(() => {
     handleSuggestedUsers();
+    fetchUserStats();
   }, []);
 
   useEffect(() => {
     getPost();
   }, [uploadPost]);
 
-  const themeClasses = darkMode 
+  const themeClasses = darkMode
     ? "bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white"
     : "bg-gradient-to-br from-[#1A1F71] to-[#2C2C2C] text-white";
 
@@ -182,24 +212,25 @@ function Home() {
     : "bg-[#2C2C2C]";
 
   return (
-    <div className={`w-full min-h-screen ${themeClasses} flex flex-col lg:flex-row p-5 gap-5 relative transition-all duration-500`}>
+    // Updated parent container for overall page scrolling
+    <div className={`w-full h-screen ${themeClasses} flex flex-col lg:flex-row p-5 gap-5 relative transition-all duration-500 overflow-y-auto custom-scrollbar`}>
       {edit && <EditProfile />}
 
       {/* Dark Mode Toggle */}
       <div className="fixed top-5 right-5 z-30">
         <button
           onClick={() => setDarkMode(!darkMode)}
-          className={`p-3 rounded-full ${darkMode ? 'bg-yellow-500 text-gray-900' : 'bg-gray-800 text-yellow-500'} 
+          className={`p-3 rounded-full ${darkMode ? 'bg-yellow-500 text-gray-900' : 'bg-gray-800 text-yellow-500'}
             hover:scale-110 transform transition-all duration-300 shadow-lg hover:shadow-xl`}
         >
           {darkMode ? <FiSun size={20} /> : <FiMoon size={20} />}
         </button>
       </div>
 
-      {/* Left Sidebar */}
-      <div className="w-full lg:w-[25%] flex flex-col gap-5 mt-[90px]">
+      {/* Left Sidebar - Added overflow-y-auto to this container */}
+      <div className="w-full lg:w-[25%] flex flex-col gap-5 mt-[90px] overflow-y-auto custom-scrollbar">
         {/* Profile Card with Enhanced Animation */}
-        <div className={`${cardClasses} rounded-2xl p-6 shadow-2xl flex flex-col items-center relative 
+        <div className={`${cardClasses} rounded-2xl p-6 shadow-2xl flex flex-col items-center relative
           hover:scale-105 transform transition-all duration-500 hover:shadow-3xl group`}>
           <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           
@@ -223,24 +254,24 @@ function Home() {
           </h2>
           <p className="text-sm text-gray-300 text-center mt-1">{userData.headline}</p>
           
-          {/* Stats */}
+          {/* Real Stats */}
           <div className="flex gap-6 mt-4">
             <div className="text-center">
-              <div className="font-bold text-lg text-[#FFD700]">1.2K</div>
+              <div className="font-bold text-lg text-[#FFD700]">{userStats.followers}</div>
               <div className="text-xs text-gray-400">Followers</div>
             </div>
             <div className="text-center">
-              <div className="font-bold text-lg text-[#FFD700]">856</div>
+              <div className="font-bold text-lg text-[#FFD700]">{userStats.following}</div>
               <div className="text-xs text-gray-400">Following</div>
             </div>
             <div className="text-center">
-              <div className="font-bold text-lg text-[#FFD700]">342</div>
+              <div className="font-bold text-lg text-[#FFD700]">{userStats.posts}</div>
               <div className="text-xs text-gray-400">Posts</div>
             </div>
           </div>
           
           <button
-            className="mt-4 px-6 py-2 bg-gradient-to-r from-[#FFD700] to-[#FFCC00] text-[#1A1F71] font-semibold rounded-full 
+            className="mt-4 px-6 py-2 bg-gradient-to-r from-[#FFD700] to-[#FFCC00] text-[#1A1F71] font-semibold rounded-full
               shadow-lg hover:shadow-xl hover:scale-105 transform transition-all duration-300 flex items-center gap-2"
             onClick={() => setEdit(true)}
           >
@@ -256,7 +287,7 @@ function Home() {
               <FiTrendingUp className="text-[#FFD700]" />
               Trending
             </h3>
-            <button 
+            <button
               onClick={() => setShowTrending(!showTrending)}
               className="text-[#FFD700] hover:text-yellow-400 transition-colors"
             >
@@ -269,70 +300,72 @@ function Home() {
               {['#ReactJS', '#WebDevelopment', '#AI', '#TechTrends', '#Innovation'].map((tag, i) => (
                 <div key={i} className="flex items-center justify-between p-2 rounded-lg hover:bg-[#1A1F71] cursor-pointer transition-colors">
                   <span className="text-[#FFD700] font-medium">{tag}</span>
-                  <span className="text-xs text-gray-400">{Math.floor(Math.random() * 10) + 1}K posts</span>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Enhanced Suggested Users */}
-        <div className={`${secondaryCardClasses} rounded-2xl p-5 shadow-lg hover:shadow-xl transition-shadow duration-300`}>
-          <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-            <IoSparklesSharp className="text-[#FFD700]" />
-            Suggested Personalities
-          </h3>
-          <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto custom-scrollbar">
-            {suggestedUser.length > 0 ? (
-              suggestedUser.map((su, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-[#1A1F71] cursor-pointer 
-                    transition-all duration-300 hover:scale-102 hover:shadow-md group"
-                  onClick={() => handleGetProfile(su.userName)}
-                >
-                  <div className="relative w-[55px] h-[55px] rounded-full overflow-hidden border-2 border-[#FFD700] group-hover:border-purple-500 transition-colors">
-                    <img
-                      src={su.profileImage || dp}
-                      alt="User"
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                    />
-                    {su.verified && (
-                      <MdVerified className="absolute -bottom-1 -right-1 bg-blue-500 text-white rounded-full p-0.5" size={18} />
-                    )}
-                  </div>
-                  <div className="flex flex-col flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold group-hover:text-[#FFD700] transition-colors">
-                        {`${su.firstName} ${su.lastName}`}
-                      </span>
-                      {su.verified && <MdVerified className="text-blue-500" size={16} />}
-                    </div>
-                    <span className="text-xs text-gray-300 line-clamp-1">{su.headline}</span>
-                    {su.followers && (
-                      <span className="text-xs text-[#FFD700] mt-1">{su.followers} followers</span>
-                    )}
-                  </div>
-                  <button className="opacity-0 group-hover:opacity-100 px-3 py-1 bg-[#FFD700] text-[#1A1F71] 
-                    rounded-full text-xs font-medium hover:bg-yellow-400 transition-all duration-300">
-                    Follow
-                  </button>
-                </div>
-              ))
-            ) : (
-              <p className="text-gray-400">No suggestions</p>
+{/* Enhanced Suggested Users */}
+<div className={`${secondaryCardClasses} rounded-2xl p-5 shadow-lg hover:shadow-xl transition-shadow duration-300`}>
+  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+    <IoSparklesSharp className="text-[#FFD700]" />
+    Suggested Personalities
+  </h3>
+  {/* Main scrollable area for suggested users */}
+  <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto custom-scrollbar">
+    {suggestedUser.length > 0 ? (
+      suggestedUser.map((su, i) => (
+        <div
+          key={i}
+          className="flex items-center gap-3 p-3 rounded-lg hover:bg-[#1A1F71] cursor-pointer
+            transition-all duration-300 hover:scale-102 hover:shadow-md group"
+          onClick={() => su.userName && handleGetProfile(su.userName)}
+        >
+          <div className="relative w-[55px] h-[55px] rounded-full overflow-hidden border-2 border-[#FFD700] group-hover:border-purple-500 transition-colors">
+            {/* Added a check for profileImage to prevent broken image icons */}
+            <img
+              src={su.profileImage || dp}
+              alt="User"
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+            />
+            {su.verified && (
+              <MdVerified className="absolute -bottom-1 -right-1 bg-blue-500 text-white rounded-full p-0.5" size={18} />
             )}
           </div>
+          <div className="flex flex-col flex-1">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold group-hover:text-[#FFD700] transition-colors">
+                {/* Fallback to username if first and last name are not available */}
+                {su.firstName && su.lastName ? `${su.firstName} ${su.lastName}` : su.userName || 'New User'}
+              </span>
+              {su.verified && <MdVerified className="text-blue-500" size={16} />}
+            </div>
+            <span className="text-xs text-gray-300 line-clamp-1">{su.headline || 'No headline available'}</span>
+            {su.followers && (
+              <span className="text-xs text-[#FFD700] mt-1">{su.followers} followers</span>
+            )}
+          </div>
+          <button className="opacity-0 group-hover:opacity-100 px-3 py-1 bg-[#FFD700] text-[#1A1F71]
+            rounded-full text-xs font-medium hover:bg-yellow-400 transition-all duration-300">
+            Follow
+          </button>
         </div>
+      ))
+    ) : (
+      <p className="text-gray-400">No suggestions</p>
+    )}
+  </div>
+</div>
       </div>
 
-      {/* Center Feed */}
-      <div className="w-full lg:w-[50%] flex flex-col gap-5 mt-[90px]">
+      {/* Center Feed - Added overflow-y-auto to this container */}
+      <div className="w-full lg:w-[50%] flex flex-col gap-5 mt-[90px] overflow-y-auto custom-scrollbar">
         {/* Enhanced Post Creation Button */}
         <div className={`${secondaryCardClasses} rounded-2xl p-4 shadow-lg`}>
           <button
-            className="w-full py-4 bg-gradient-to-r from-[#FFD700] via-[#FFCC00] to-[#FFB700] text-[#1A1F71] 
-              font-bold rounded-xl shadow-lg flex items-center justify-center gap-3 
+            className="w-full py-4 bg-gradient-to-r from-[#FFD700] via-[#FFCC00] to-[#FFB700] text-[#1A1F71]
+              font-bold rounded-xl shadow-lg flex items-center justify-center gap-3
               hover:scale-105 transform transition-all duration-300 hover:shadow-2xl group relative overflow-hidden"
             onClick={() => setUploadPost(true)}
           >
@@ -343,22 +376,22 @@ function Home() {
           
           {/* Quick Action Buttons */}
           <div className="flex gap-2 mt-3">
-            <button 
+            <button
               onClick={() => { setUploadPost(true); setPostType('image'); }}
-              className="flex-1 py-2 px-3 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-400 
+              className="flex-1 py-2 px-3 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-400
                 hover:text-blue-300 transition-all duration-300 flex items-center justify-center gap-2 text-sm"
             >
               <BsImage size={16} /> Photo
             </button>
-            <button 
+            <button
               onClick={() => { setUploadPost(true); setPostType('poll'); }}
-              className="flex-1 py-2 px-3 bg-green-500/20 hover:bg-green-500/30 rounded-lg text-green-400 
+              className="flex-1 py-2 px-3 bg-green-500/20 hover:bg-green-500/30 rounded-lg text-green-400
                 hover:text-green-300 transition-all duration-300 flex items-center justify-center gap-2 text-sm"
             >
               <BiPoll size={16} /> Poll
             </button>
-            <button 
-              className="flex-1 py-2 px-3 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-400 
+            <button
+              className="flex-1 py-2 px-3 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-400
                 hover:text-purple-300 transition-all duration-300 flex items-center justify-center gap-2 text-sm"
             >
               <BsEmojiSmile size={16} /> Feeling
@@ -369,36 +402,36 @@ function Home() {
         {/* Enhanced Posts */}
         <div className="space-y-4">
           {postData.map((post, index) => (
-            <div key={index} className={`${secondaryCardClasses} rounded-2xl p-6 shadow-lg 
+            <div key={index} className={`${secondaryCardClasses} rounded-2xl p-6 shadow-lg
               hover:shadow-xl transition-all duration-300 hover:scale-[1.02] group`}>
               <Post {...post} />
               
-              {/* Enhanced Interaction Buttons */}
+              {/* Real Interaction Buttons with actual counts from post data */}
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-600">
-                <button 
-                  onClick={() => toggleLike(post.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-300 
-                    ${likedPosts.has(post.id) 
-                      ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' 
+                <button
+                  onClick={() => toggleLike(post._id || post.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-300
+                    ${post.isLiked || likedPosts.has(post._id || post.id)
+                      ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
                       : 'hover:bg-gray-700 text-gray-400 hover:text-red-400'}`}
                 >
-                  <FiHeart className={likedPosts.has(post.id) ? 'fill-current' : ''} size={18} />
-                  <span className="text-sm">{Math.floor(Math.random() * 100) + (likedPosts.has(post.id) ? 1 : 0)}</span>
+                  <FiHeart className={post.isLiked || likedPosts.has(post._id || post.id) ? 'fill-current' : ''} size={18} />
+                  <span className="text-sm">{post.likes?.length || 0}</span>
                 </button>
                 
-                <button className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-gray-700 
+                <button className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-gray-700
                   text-gray-400 hover:text-blue-400 transition-all duration-300">
                   <FiMessageCircle size={18} />
-                  <span className="text-sm">{Math.floor(Math.random() * 50)}</span>
+                  <span className="text-sm">{post.comments?.length || 0}</span>
                 </button>
                 
-                <button className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-gray-700 
+                <button className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-gray-700
                   text-gray-400 hover:text-green-400 transition-all duration-300">
                   <FiShare2 size={18} />
-                  <span className="text-sm">{Math.floor(Math.random() * 25)}</span>
+                  <span className="text-sm">{post.shares?.length || 0}</span>
                 </button>
                 
-                <button className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-gray-700 
+                <button className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-gray-700
                   text-gray-400 hover:text-yellow-400 transition-all duration-300">
                   <BsBookmark size={18} />
                 </button>
@@ -417,8 +450,8 @@ function Home() {
             className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-40 animate-fadeIn"
             onClick={() => setUploadPost(false)}
           />
-          <div className={`fixed top-1/2 left-1/2 w-[95%] max-w-2xl ${secondaryCardClasses} rounded-3xl 
-            shadow-2xl p-6 transform -translate-x-1/2 -translate-y-1/2 z-50 text-white 
+          <div className={`fixed top-1/2 left-1/2 w-[95%] max-w-2xl ${secondaryCardClasses} rounded-3xl
+            shadow-2xl p-6 transform -translate-x-1/2 -translate-y-1/2 z-50 text-white
             animate-scaleIn border border-gray-600`}>
             
             {/* Header */}
@@ -442,8 +475,8 @@ function Home() {
                   key={type}
                   onClick={() => setPostType(type)}
                   className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 capitalize
-                    ${postType === type 
-                      ? 'bg-[#FFD700] text-[#1A1F71]' 
+                    ${postType === type
+                      ? 'bg-[#FFD700] text-[#1A1F71]'
                       : 'bg-gray-700 hover:bg-gray-600 text-gray-300'}`}
                 >
                   {type === 'text' && <BsEmojiSmile className="inline mr-1" />}
@@ -456,7 +489,7 @@ function Home() {
 
             {/* Content Input */}
             <textarea
-              className={`w-full p-4 ${darkMode ? 'bg-gray-800' : 'bg-[#1A1F71]'} rounded-xl resize-none 
+              className={`w-full p-4 ${darkMode ? 'bg-gray-800' : 'bg-[#1A1F71]'} rounded-xl resize-none
                 focus:outline-none focus:ring-2 focus:ring-[#FFD700] transition-all duration-300
                 placeholder-gray-400 text-lg`}
               placeholder={postType === 'poll' ? "Ask a question..." : "What's on your mind?"}
@@ -479,7 +512,7 @@ function Home() {
                       placeholder={`Option ${index + 1}`}
                       value={option}
                       onChange={(e) => updatePollOption(index, e.target.value)}
-                      className={`flex-1 p-3 ${darkMode ? 'bg-gray-800' : 'bg-[#1A1F71]'} rounded-lg 
+                      className={`flex-1 p-3 ${darkMode ? 'bg-gray-800' : 'bg-[#1A1F71]'} rounded-lg
                         focus:outline-none focus:ring-2 focus:ring-[#FFD700] transition-all duration-300`}
                     />
                     {pollOptions.length > 2 && (
@@ -495,7 +528,7 @@ function Home() {
                 {pollOptions.length < 4 && (
                   <button
                     onClick={addPollOption}
-                    className="w-full p-3 border-2 border-dashed border-gray-600 rounded-lg 
+                    className="w-full p-3 border-2 border-dashed border-gray-600 rounded-lg
                       text-gray-400 hover:border-[#FFD700] hover:text-[#FFD700] transition-colors"
                   >
                     + Add Option
@@ -514,7 +547,7 @@ function Home() {
                 />
                 <button
                   onClick={() => {setFrontendImage(""); setBackendImage(""); setPostType('text');}}
-                  className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full 
+                  className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full
                     hover:bg-red-600 transition-colors"
                 >
                   <RxCross1 size={16} />
@@ -527,14 +560,14 @@ function Home() {
               <div className="flex gap-3">
                 <button
                   onClick={() => image.current.click()}
-                  className="p-3 bg-blue-500/20 text-blue-400 rounded-full hover:bg-blue-500/30 
+                  className="p-3 bg-blue-500/20 text-blue-400 rounded-full hover:bg-blue-500/30
                     transition-colors hover:scale-110 transform duration-200"
                   title="Add Image"
                 >
                   <BsImage size={20} />
                 </button>
                 <button
-                  className="p-3 bg-yellow-500/20 text-yellow-400 rounded-full hover:bg-yellow-500/30 
+                  className="p-3 bg-yellow-500/20 text-yellow-400 rounded-full hover:bg-yellow-500/30
                     transition-colors hover:scale-110 transform duration-200"
                   title="Add Emoji"
                 >
@@ -543,8 +576,8 @@ function Home() {
               </div>
               
               <button
-                className="px-8 py-3 bg-gradient-to-r from-[#FFD700] to-[#FFCC00] text-[#1A1F71] 
-                  rounded-full font-bold hover:scale-105 transform transition-all duration-300 
+                className="px-8 py-3 bg-gradient-to-r from-[#FFD700] to-[#FFCC00] text-[#1A1F71]
+                  rounded-full font-bold hover:scale-105 transform transition-all duration-300
                   disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none
                   shadow-lg hover:shadow-xl"
                 onClick={handleUploadPost}
@@ -565,57 +598,6 @@ function Home() {
           </div>
         </>
       )}
-
-      <style jsx>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #FFD700;
-          border-radius: 2px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #FFCC00;
-        }
-        
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        
-        @keyframes scaleIn {
-          from { 
-            opacity: 0; 
-            transform: translate(-50%, -50%) scale(0.9);
-          }
-          to { 
-            opacity: 1; 
-            transform: translate(-50%, -50%) scale(1);
-          }
-        }
-        
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-out;
-        }
-        
-        .animate-scaleIn {
-          animation: scaleIn 0.3s ease-out;
-        }
-        
-        .hover\\:scale-102:hover {
-          transform: scale(1.02);
-        }
-        
-        .line-clamp-1 {
-          overflow: hidden;
-          display: -webkit-box;
-          -webkit-line-clamp: 1;
-          -webkit-box-orient: vertical;
-        }
-      `}</style>
     </div>
   );
 }

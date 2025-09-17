@@ -1,11 +1,22 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { X, Plus, Search, MapPin, Building, FileText, Briefcase, Upload } from "lucide-react";
+import {
+  X,
+  Plus,
+  Search,
+  MapPin,
+  Building,
+  Briefcase,
+  Upload,
+} from "lucide-react";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import Nav from "../components/Nav";
 
 function JobBoard() {
   const [jobs, setJobs] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [company, setCompany] = useState("");
   const [description, setDescription] = useState("");
@@ -19,37 +30,25 @@ function JobBoard() {
   const [resume, setResume] = useState(null);
   const [isApplying, setIsApplying] = useState(false);
 
-  // Fetch jobs
+  // Add axios interceptor to include auth token
+  useEffect(() => {
+    const token = localStorage.getItem('token'); // Adjust based on how you store your auth token
+    
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    }
+  }, []);
+
+  // Fetch Jobs
   const fetchJobs = async () => {
     try {
       const res = await axios.get("http://localhost:8000/api/jobs");
       setJobs(res.data);
     } catch (error) {
-      console.error(error.response ? error.response.data : error.message);
-    }
-  };
-
-  // Add job
-  const addJob = async () => {
-    if (!title.trim() || !company.trim() || !description.trim() || !location.trim()) {
-      alert("All fields are required");
-      return;
-    }
-    try {
-      await axios.post("http://localhost:8000/api/jobs/add", {
-        title,
-        company,
-        description,
-        location,
-      });
-      setTitle("");
-      setCompany("");
-      setDescription("");
-      setLocation("");
-      setIsModalOpen(false);
-      fetchJobs();
-    } catch (error) {
-      console.error(error.response ? error.response.data : error.message);
+      console.error("Fetch jobs error:", error);
+      if (error.response?.status === 401) {
+        toast.error("Please login to continue");
+      }
     }
   };
 
@@ -57,59 +56,163 @@ function JobBoard() {
     fetchJobs();
   }, []);
 
-  // Filter jobs by search
-  const filteredJobs = jobs.filter((job) =>
-    job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    job.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    job.location.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Handle "View Details"
-  const handleViewDetails = (job) => {
-    setSelectedJob(job);
-  };
-
-  // Close Modal
-  const closeDetailsModal = () => {
-    setSelectedJob(null);
-  };
-
-  // Handle Apply Job
-  const handleApplyJob = async (e) => {
-    e.preventDefault();
-    if (!applicantName || !applicantEmail || !resume) {
-      alert("Please fill all fields and upload your resume!");
+  // Add Job
+  const addJob = async () => {
+    if (!title || !company || !location || !description) {
+      toast.error("All fields are required!");
       return;
     }
 
-    setIsApplying(true);
-    const formData = new FormData();
-    formData.append("name", applicantName);
-    formData.append("email", applicantEmail);
-    formData.append("resume", resume);
-    formData.append("jobId", selectedJob._id);
+    try {
+      const token = localStorage.getItem('token');
+      const config = {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      };
+
+      await axios.post("http://localhost:8000/api/jobs/add", {
+        title,
+        company,
+        location,
+        description,
+      }, config);
+      
+      toast.success("Job added successfully!");
+      setTitle("");
+      setCompany("");
+      setLocation("");
+      setDescription("");
+      setIsModalOpen(false);
+      fetchJobs();
+    } catch (error) {
+      console.error("Add job error:", error);
+      if (error.response?.status === 401) {
+        toast.error("Please login to post jobs");
+      } else {
+        toast.error("Failed to add job!");
+      }
+    }
+  };
+
+  // Delete Job
+  const deleteJob = async (jobId) => {
+    if (!window.confirm("Are you sure you want to delete this job?")) return;
 
     try {
-      await axios.post("http://localhost:8000/api/jobs/apply", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+      const token = localStorage.getItem('token');
+      const config = {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      };
+
+      await axios.delete(`http://localhost:8000/api/jobs/${jobId}`, config);
+      toast.success("Job deleted successfully!");
+      fetchJobs();
+    } catch (error) {
+      console.error("Delete job error:", error);
+      if (error.response?.status === 401) {
+        toast.error("Please login to delete jobs");
+      } else {
+        toast.error("Failed to delete job!");
+      }
+    }
+  };
+  
+  // Handle file upload
+  const handleResumeChange = (e) => {
+    const file = e.target.files[0];
+    if (file && file.type === "application/pdf") {
+      setResume(file);
+    } else {
+      setResume(null);
+      toast.error("Please upload a PDF file.");
+    }
+  };
+
+  // Handle job application - IMPROVED VERSION
+  const handleApply = async (e) => {
+    e.preventDefault();
+    
+    if (!applicantName || !applicantEmail || !resume) {
+      toast.error("Please fill all fields and upload your resume.");
+      return;
+    }
+    
+    setIsApplying(true);
+    
+    try {
+      // Check if we have credentials (cookies will be sent automatically)
+      const formData = new FormData();
+      formData.append("name", applicantName);
+      formData.append("email", applicantEmail);
+      formData.append("resume", resume);
+      formData.append("jobId", selectedJob._id);
+
+      console.log("Submitting application with data:", {
+        name: applicantName,
+        email: applicantEmail,
+        jobId: selectedJob._id,
+        resumeName: resume.name
       });
-      alert("Application submitted successfully!");
+
+      const response = await axios.post(
+        "http://localhost:8000/api/jobs/apply", 
+        formData, 
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+          withCredentials: true // This sends cookies with the request
+        }
+      );
+
+      console.log("Application response:", response.data);
+      toast.success("Application submitted successfully!");
+      setIsApplyModalOpen(false);
       setApplicantName("");
       setApplicantEmail("");
       setResume(null);
       setSelectedJob(null);
+      
     } catch (error) {
-      alert("Failed to apply. Please try again.");
-      console.error(error);
+      console.error("Application error:", error);
+      
+      if (error.response) {
+        // Server responded with error status
+        console.log("Error response data:", error.response.data);
+        console.log("Error status:", error.response.status);
+        
+        if (error.response.status === 401) {
+          toast.error("Authentication failed. Please login again.");
+        } else if (error.response.status === 400) {
+          toast.error(error.response.data.message || "Invalid application data");
+        } else {
+          toast.error("Server error. Please try again later.");
+        }
+      } else if (error.request) {
+        // Network error
+        toast.error("Network error. Please check your connection.");
+      } else {
+        toast.error("Failed to submit application.");
+      }
     } finally {
       setIsApplying(false);
     }
   };
 
+  const filteredJobs = jobs.filter(
+    (job) =>
+      job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      job.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      job.location.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
-      {/* Navbar */}
       <Nav />
+      <ToastContainer position="top-right" autoClose={3000} />
 
       {/* Header Section */}
       <div className="bg-white/10 backdrop-blur-md border-b border-white/20 mt-[80px]">
@@ -118,27 +221,26 @@ function JobBoard() {
             <h1 className="text-4xl font-bold text-white mb-2 bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
               Find Your Dream Job
             </h1>
-            <p className="text-white/80 text-lg">Discover amazing opportunities from top companies</p>
+            <p className="text-white/80 text-lg">
+              Discover amazing opportunities from top companies
+            </p>
           </div>
 
-          {/* Search and Add Job Controls */}
+          {/* Search & Add Job */}
           <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-            {/* Search Bar */}
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Search jobs, companies, or locations..."
+                placeholder="Search jobs..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all duration-200"
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-purple-400"
               />
             </div>
-
-            {/* Add Job Button */}
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl hover:from-pink-600 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl hover:from-pink-600 hover:to-purple-700 transform hover:scale-105 transition-all shadow-lg"
             >
               <Plus className="w-5 h-5" />
               Post New Job
@@ -154,41 +256,45 @@ function JobBoard() {
             {filteredJobs.map((job) => (
               <div
                 key={job._id}
-                className="group bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:bg-white/20 hover:border-white/30 transition-all duration-300 hover:transform hover:scale-105 hover:shadow-2xl"
+                className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:bg-white/20 hover:border-white/30 transition-all duration-300"
               >
-                <div className="flex items-start justify-between mb-4">
+                <div className="flex items-start justify-between mb-4 gap-2">
                   <div className="p-3 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl">
                     <Briefcase className="w-6 h-6 text-purple-300" />
                   </div>
-                  <span className="text-xs text-white/60 bg-white/10 px-2 py-1 rounded-full">
-                    New
-                  </span>
+                  {/* Apply & Delete Buttons */}
+                  <div className="flex space-x-2">
+                    <button
+                        onClick={() => {
+                            setSelectedJob(job);
+                            setIsApplyModalOpen(true);
+                        }}
+                        className="px-4 py-1 bg-green-500 hover:bg-green-600 text-white rounded-md text-sm transition-all"
+                    >
+                        Apply
+                    </button>
+                    <button
+                        onClick={() => deleteJob(job._id)}
+                        className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm transition-all"
+                    >
+                        Delete
+                    </button>
+                  </div>
                 </div>
-
-                <h3 className="text-xl font-bold text-white mb-2 group-hover:text-purple-300 transition-colors">
+                <h3 className="text-xl font-bold text-white mb-2">
                   {job.title}
                 </h3>
-
-                <div className="flex items-center gap-2 text-white/80 mb-3">
+                <div className="flex items-center gap-2 text-white/80 mb-2">
                   <Building className="w-4 h-4" />
-                  <span className="text-sm">{job.company}</span>
+                  <span>{job.company}</span>
                 </div>
-
-                <div className="flex items-center gap-2 text-white/80 mb-4">
+                <div className="flex items-center gap-2 text-white/80 mb-3">
                   <MapPin className="w-4 h-4" />
-                  <span className="text-sm">{job.location}</span>
+                  <span>{job.location}</span>
                 </div>
-
-                <p className="text-white/70 text-sm leading-relaxed mb-4 line-clamp-3">
+                <p className="text-white/70 text-sm line-clamp-3 mb-4">
                   {job.description}
                 </p>
-
-                <button
-                  onClick={() => handleViewDetails(job)}
-                  className="w-full py-2 px-4 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-400/30 text-white rounded-lg hover:from-purple-500/30 hover:to-pink-500/30 hover:border-purple-400/50 transition-all duration-200 text-sm font-medium"
-                >
-                  View Details
-                </button>
               </div>
             ))}
           </div>
@@ -200,71 +306,135 @@ function JobBoard() {
         )}
       </div>
 
-      {/* Job Details Modal with Apply Form */}
-      {selectedJob && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-md">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl p-6 relative animate-fadeIn">
+      {/* Add Job Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 relative">
             <button
-              onClick={closeDetailsModal}
-              className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 transition"
+              onClick={() => setIsModalOpen(false)}
+              className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100"
             >
               <X className="w-5 h-5 text-gray-600" />
             </button>
-
-            <h2 className="text-3xl font-bold text-gray-800 mb-3">{selectedJob.title}</h2>
-            <div className="flex items-center gap-2 mb-2 text-gray-600">
-              <Building className="w-4 h-4" />
-              <span className="text-md">{selectedJob.company}</span>
-            </div>
-            <div className="flex items-center gap-2 mb-4 text-gray-600">
-              <MapPin className="w-4 h-4" />
-              <span className="text-md">{selectedJob.location}</span>
-            </div>
-            <p className="text-gray-700 leading-relaxed mb-6">{selectedJob.description}</p>
-
-            {/* Apply Form */}
-            <form onSubmit={handleApplyJob} className="space-y-4">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">
+              Post a New Job
+            </h2>
+            <div className="space-y-4">
               <input
                 type="text"
-                placeholder="Your Name"
-                value={applicantName}
-                onChange={(e) => setApplicantName(e.target.value)}
+                placeholder="Job Title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
                 className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
-                required
               />
               <input
-                type="email"
-                placeholder="Your Email"
-                value={applicantEmail}
-                onChange={(e) => setApplicantEmail(e.target.value)}
+                type="text"
+                placeholder="Company Name"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
                 className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
-                required
               />
-              <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 px-4 py-3 bg-purple-100 border border-purple-300 rounded-lg cursor-pointer hover:bg-purple-200 transition">
-                  <Upload className="w-5 h-5 text-purple-700" />
-                  <span className="text-purple-700 font-medium">
-                    {resume ? resume.name : "Upload Resume"}
-                  </span>
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx"
-                    onChange={(e) => setResume(e.target.files[0])}
-                    className="hidden"
-                    required
-                  />
-                </label>
+              <input
+                type="text"
+                placeholder="Location"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
+              />
+              <textarea
+                placeholder="Job Description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows="4"
+                className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 py-3 border rounded-lg text-gray-700 hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={addJob}
+                  className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700"
+                >
+                  Post Job
+                </button>
               </div>
-
-              <button
-                type="submit"
-                disabled={isApplying}
-                className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg shadow-md hover:from-purple-700 hover:to-pink-700 transition-all"
-              >
-                {isApplying ? "Applying..." : "Apply Now"}
-              </button>
-            </form>
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* Apply Job Modal */}
+      {isApplyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 relative">
+                <button
+                    onClick={() => setIsApplyModalOpen(false)}
+                    className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100"
+                >
+                    <X className="w-5 h-5 text-gray-600" />
+                </button>
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                    Apply for {selectedJob?.title} at {selectedJob?.company}
+                </h2>
+                <form className="space-y-4" onSubmit={handleApply}>
+                    <input
+                        type="text"
+                        placeholder="Your Name"
+                        value={applicantName}
+                        onChange={(e) => setApplicantName(e.target.value)}
+                        className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                        required
+                    />
+                    <input
+                        type="email"
+                        placeholder="Your Email"
+                        value={applicantEmail}
+                        onChange={(e) => setApplicantEmail(e.target.value)}
+                        className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                        required
+                    />
+                    <div className="relative flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-lg text-center">
+                        {resume ? (
+                            <p className="text-green-600">Resume uploaded: {resume.name}</p>
+                        ) : (
+                            <>
+                                <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                                <p className="text-gray-500 text-sm">
+                                    Upload your resume (PDF only)
+                                </p>
+                            </>
+                        )}
+                        <input
+                            type="file"
+                            accept=".pdf"
+                            onChange={handleResumeChange}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            style={{ zIndex: 1 }}
+                            required
+                        />
+                    </div>
+                    <div className="flex gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setIsApplyModalOpen(false)}
+                            className="flex-1 py-3 border rounded-lg text-gray-700 hover:bg-gray-100"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isApplying}
+                            className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isApplying ? "Submitting..." : "Submit Application"}
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
       )}
     </div>

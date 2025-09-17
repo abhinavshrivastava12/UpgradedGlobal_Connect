@@ -4,10 +4,11 @@ import ChatWindow from '../components/chat/ChatWindow'
 function ChatPage() {
   return (
     <>
-    <Nav/>
-    <ChatWindow/>
+      <Nav />
+      <div className="mt-16">
+        <ChatWindow />
+      </div>
     </>
   )
 }
-
 export default ChatPage;

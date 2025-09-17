@@ -93,6 +93,12 @@ function Signup() {
         { withCredentials: true }
       );
       setSuccess(result.data.message);
+      
+      // ✅ Corrected: Save data to local storage for persistent authentication
+      localStorage.setItem('token', result.data.token);
+      localStorage.setItem('userId', result.data.user._id);
+      localStorage.setItem('email', result.data.user.email);
+      
       setUserData(result.data.user);
       navigate("/");
     } catch (error) {
@@ -174,7 +180,6 @@ function Signup() {
             </div>
           )}
 
-          {/* Error message */}
           {err && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center space-x-3 animate-pulse">
               <AlertCircle className="w-5 h-5 text-red-500" />

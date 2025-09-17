@@ -1,5 +1,5 @@
-// controllers/chat.controller.js
 import Message from "../models/Message.js";
+import { Types } from "mongoose";
 
 /**
  * GET /api/chat/history/:withUser?page=1&limit=30
@@ -7,31 +7,69 @@ import Message from "../models/Message.js";
  */
 export const getHistory = async (req, res) => {
   try {
-    const userId = req.user?._id || req.userId; // adapt to your auth
+    const userId = req.userId; // From isAuth middleware
     const withUser = req.params.withUser;
+    
+    if (!userId || !withUser) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Missing required parameters" 
+      });
+    }
+
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit || "30", 10), 1), 100);
     const skip = (page - 1) * limit;
 
+    // Ensure we're working with valid ObjectIds
+    let userObjectId, withUserObjectId;
+    
+    try {
+      userObjectId = new Types.ObjectId(userId);
+      withUserObjectId = new Types.ObjectId(withUser);
+    } catch (error) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Invalid user ID format" 
+      });
+    }
+
     const filter = {
       $or: [
-        { from: userId, to: withUser },
-        { from: withUser, to: userId }
+        { from: userObjectId, to: withUserObjectId },
+        { from: withUserObjectId, to: userObjectId }
       ]
     };
 
     const [items, total] = await Promise.all([
-      Message.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Message.find(filter)
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(), // Use lean() for better performance
       Message.countDocuments(filter)
     ]);
 
+    // Convert ObjectIds to strings for consistency with frontend
+    const processedItems = items.reverse().map(item => ({
+      ...item,
+      from: item.from.toString(),
+      to: item.to.toString(),
+    }));
+
     res.json({
-      page, limit, total,
-      items: items.reverse() // earliest first for UI
+      success: true,
+      page, 
+      limit, 
+      total,
+      items: processedItems
     });
   } catch (err) {
     console.error("getHistory error:", err);
-    res.status(500).json({ message: "Failed to fetch chat history" });
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to fetch chat history" 
+    });
   }
 };
 
@@ -41,25 +79,42 @@ export const getHistory = async (req, res) => {
  */
 export const getInbox = async (req, res) => {
   try {
-    const userId = req.user?._id || req.userId;
+    const userId = req.userId; // From isAuth middleware
+
+    if (!userId) {
+      return res.status(400).json({ 
+        success: false,
+        message: "User ID not found" 
+      });
+    }
+
+    let userObjectId;
+    try {
+      userObjectId = new Types.ObjectId(userId);
+    } catch (error) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Invalid user ID format" 
+      });
+    }
 
     const pipeline = [
       {
         $match: {
           $or: [
-            { from: new Message().constructor.Types.ObjectId(userId) },
-            { to:   new Message().constructor.Types.ObjectId(userId) }
+            { from: userObjectId },
+            { to: userObjectId }
           ]
         }
       },
       {
         $addFields: {
           otherUser: {
-            $cond: [{ $eq: ["$from", new Message().constructor.Types.ObjectId(userId)] }, "$to", "$from"]
+            $cond: [{ $eq: ["$from", userObjectId] }, "$to", "$from"]
           }
         }
       },
-      { $sort: { createdAt: -1 } },
+      { $sort: { timestamp: -1 } },
       {
         $group: {
           _id: "$otherUser",
@@ -67,7 +122,12 @@ export const getInbox = async (req, res) => {
           unread: {
             $sum: {
               $cond: [
-                { $and: [{ $eq: ["$to", new Message().constructor.Types.ObjectId(userId)] }, { $eq: ["$readAt", null] }] },
+                { 
+                  $and: [
+                    { $eq: ["$to", userObjectId] }, 
+                    { $eq: ["$readAt", null] }
+                  ]
+                },
                 1,
                 0
               ]
@@ -75,14 +135,32 @@ export const getInbox = async (req, res) => {
           }
         }
       },
-      { $sort: { "lastMessage.createdAt": -1 } }
+      { $sort: { "lastMessage.timestamp": -1 } }
     ];
 
     const rows = await Message.aggregate(pipeline);
-    res.json(rows);
+    
+    // Process the results to convert ObjectIds to strings
+    const processedRows = rows.map(row => ({
+      ...row,
+      _id: row._id.toString(),
+      lastMessage: {
+        ...row.lastMessage,
+        from: row.lastMessage.from.toString(),
+        to: row.lastMessage.to.toString(),
+      }
+    }));
+
+    res.json({
+      success: true,
+      data: processedRows
+    });
   } catch (err) {
     console.error("getInbox error:", err);
-    res.status(500).json({ message: "Failed to fetch inbox" });
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to fetch inbox" 
+    });
   }
 };
 
@@ -92,17 +170,45 @@ export const getInbox = async (req, res) => {
  */
 export const markRead = async (req, res) => {
   try {
-    const userId = req.user?._id || req.userId;
+    const userId = req.userId; // From isAuth middleware
     const withUser = req.params.withUser;
 
+    if (!userId || !withUser) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Missing required parameters" 
+      });
+    }
+
+    let userObjectId, withUserObjectId;
+    try {
+      userObjectId = new Types.ObjectId(userId);
+      withUserObjectId = new Types.ObjectId(withUser);
+    } catch (error) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Invalid user ID format" 
+      });
+    }
+
     const result = await Message.updateMany(
-      { from: withUser, to: userId, readAt: null },
+      { 
+        from: withUserObjectId, 
+        to: userObjectId, 
+        readAt: null 
+      },
       { $set: { readAt: new Date() } }
     );
 
-    res.json({ updated: result.modifiedCount });
+    res.json({ 
+      success: true,
+      updated: result.modifiedCount 
+    });
   } catch (err) {
     console.error("markRead error:", err);
-    res.status(500).json({ message: "Failed to mark as read" });
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to mark as read" 
+    });
   }
 };

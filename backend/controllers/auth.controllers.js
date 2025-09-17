@@ -1,29 +1,31 @@
-import genToken from "../config/token.js"
-import User from "../models/user.model.js"
-import OTP from "../models/otp.model.js"
-import bcrypt from "bcryptjs"
-import nodemailer from "nodemailer"
-import crypto from "crypto"
+import dotenv from "dotenv";
+dotenv.config();
 
-// Email transporter setup
+import genToken from "../config/token.js";
+import User from "../models/user.model.js";
+import OTP from "../models/otp.model.js";
+import bcrypt from "bcryptjs";
+import nodemailer from "nodemailer";
+
+// Create Nodemailer transporter after dotenv loads env vars
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  service: "gmail",
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
-  }
-})
+  },
+  secure: false,
+  port: 587
+});
 
-console.log("Nodemailer Config - User:", process.env.EMAIL_USER); // Add this line
-console.log("Nodemailer Config - Pass:", process.env.EMAIL_PASS); // Add this line
+console.log("Nodemailer Config - User:", process.env.EMAIL_USER);
+console.log("Nodemailer Config - Pass:", process.env.EMAIL_PASS ? "******" : "undefined");
 
-// Generate OTP
-const generateOTP = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString()
-}
+// Generate 6-digit OTP
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
 // Send OTP Email
-const sendOTPEmail = async (email, otp, type) => {
+export const sendOTPEmail = async (email, otp, type) => {
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: email,
@@ -41,275 +43,192 @@ const sendOTPEmail = async (email, otp, type) => {
         </div>
       </div>
     `
-  }
-  
-  await transporter.sendMail(mailOptions)
-}
+  };
+  await transporter.sendMail(mailOptions);
+};
 
+// Sign Up: Send OTP
 export const sendSignUpOTP = async (req, res) => {
   try {
-    const { firstName, lastName, userName, email, password } = req.body
-
-    // Validation
+    const { firstName, lastName, userName, email, password } = req.body;
     if (!firstName || !lastName || !userName || !email || !password) {
-      return res.status(400).json({ message: "All fields are required" })
+      return res.status(400).json({ message: "All fields are required" });
     }
-
     if (password.length < 8) {
-      return res.status(400).json({ message: "Password must be at least 8 characters" })
+      return res.status(400).json({ message: "Password must be at least 8 characters" });
     }
-
-    // Check if user already exists
-    let existEmail = await User.findOne({ email })
-    if (existEmail) {
-      return res.status(400).json({ message: "Email already exists!" })
+    if (await User.findOne({ email })) {
+      return res.status(400).json({ message: "Email already exists!" });
     }
-
-    let existUsername = await User.findOne({ userName })
-    if (existUsername) {
-      return res.status(400).json({ message: "Username already exists!" })
+    if (await User.findOne({ userName })) {
+      return res.status(400).json({ message: "Username already exists!" });
     }
-
-    // Generate OTP
-    const otp = generateOTP()
-    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10)
-
-    // Store OTP and user data temporarily
-    await OTP.findOneAndDelete({ email }) // Remove any existing OTP
-    
+    const otp = generateOTP();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await OTP.findOneAndDelete({ email, type: "signup" });
     await OTP.create({
       email,
       otp,
       otpExpiry,
-      userData: {
-        firstName,
-        lastName,
-        userName,
-        email,
-        password: hashedPassword
-      },
-      type: 'signup'
-    })
-
-    // Send OTP email
-    await sendOTPEmail(email, otp, 'Sign Up')
-
-    return res.status(200).json({
-      message: "OTP sent to your email",
-      email: email
-    })
-
+      userData: { firstName, lastName, userName, email, password: hashedPassword },
+      type: "signup"
+    });
+    await sendOTPEmail(email, otp, "Sign Up");
+    return res.status(200).json({ message: "OTP sent to your email", email });
   } catch (error) {
-    console.log(error)
-    return res.status(500).json({ message: "Failed to send OTP" })
+    console.log(error);
+    return res.status(500).json({ message: "Failed to send OTP" });
   }
-}
+};
 
+// Sign Up: Verify OTP (Corrected)
 export const verifySignUpOTP = async (req, res) => {
   try {
-    const { email, otp } = req.body
-
+    const { email, otp } = req.body;
     if (!email || !otp) {
-      return res.status(400).json({ message: "Email and OTP are required" })
+      return res.status(400).json({ message: "Email and OTP are required" });
     }
-
-    // Find OTP record
-    const otpRecord = await OTP.findOne({ email, type: 'signup' })
+    const otpRecord = await OTP.findOne({ email, type: "signup" });
     if (!otpRecord) {
-      return res.status(400).json({ message: "OTP not found or expired" })
+      return res.status(400).json({ message: "OTP not found or expired" });
     }
-
-    // Check if OTP is expired
     if (new Date() > otpRecord.otpExpiry) {
-      await OTP.findOneAndDelete({ email, type: 'signup' })
-      return res.status(400).json({ message: "OTP expired" })
+      await OTP.findOneAndDelete({ email, type: "signup" });
+      return res.status(400).json({ message: "OTP expired" });
     }
-
-    // Verify OTP
     if (otpRecord.otp !== otp) {
-      return res.status(400).json({ message: "Invalid OTP" })
+      return res.status(400).json({ message: "Invalid OTP" });
     }
-
-    // Create user
-    const user = await User.create(otpRecord.userData)
-
-    // Delete OTP record
-    await OTP.findOneAndDelete({ email, type: 'signup' })
-
-    // Generate token
-    let token = await genToken(user._id)
+    const user = await User.create(otpRecord.userData);
+    await OTP.findOneAndDelete({ email, type: "signup" });
+    let token = await genToken(user._id);
     res.cookie("token", token, {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
       sameSite: "strict",
       secure: process.env.NODE_ENVIRONMENT === "production"
-    })
-
+    });
+    // ✅ Corrected: Added token, _id, and email to the JSON response
     return res.status(201).json({
       message: "Account created successfully",
+      token: token,
       user: {
         _id: user._id,
+        email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
         userName: user.userName,
-        email: user.email
       }
-    })
-
+    });
   } catch (error) {
-    console.log(error)
-    return res.status(500).json({ message: "Verification failed" })
+    console.log(error);
+    return res.status(500).json({ message: "Verification failed" });
   }
-}
+};
 
+// Login: Send OTP
 export const sendLoginOTP = async (req, res) => {
   try {
-    const { email } = req.body
-
+    const { email } = req.body;
     if (!email) {
-      return res.status(400).json({ message: "Email is required" })
+      return res.status(400).json({ message: "Email is required" });
     }
-
-    // Check if user exists
-    const user = await User.findOne({ email })
+    const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ message: "User does not exist!" })
+      return res.status(400).json({ message: "User does not exist!" });
     }
-
-    // Generate OTP
-    const otp = generateOTP()
-    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
-
-    // Store OTP
-    await OTP.findOneAndDelete({ email, type: 'login' }) // Remove any existing OTP
-    
-    await OTP.create({
-      email,
-      otp,
-      otpExpiry,
-      type: 'login'
-    })
-
-    // Send OTP email
-    await sendOTPEmail(email, otp, 'Login')
-
-    return res.status(200).json({
-      message: "OTP sent to your email",
-      email: email
-    })
-
+    const otp = generateOTP();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+    await OTP.findOneAndDelete({ email, type: "login" });
+    await OTP.create({ email, otp, otpExpiry, type: "login" });
+    await sendOTPEmail(email, otp, "Login");
+    return res.status(200).json({ message: "OTP sent to your email", email });
   } catch (error) {
-    console.log(error)
-    return res.status(500).json({ message: "Failed to send OTP" })
+    console.log(error);
+    return res.status(500).json({ message: "Failed to send OTP" });
   }
-}
+};
 
+// Login: Verify OTP (Corrected)
 export const verifyLoginOTP = async (req, res) => {
   try {
-    const { email, otp } = req.body
-
+    const { email, otp } = req.body;
     if (!email || !otp) {
-      return res.status(400).json({ message: "Email and OTP are required" })
+      return res.status(400).json({ message: "Email and OTP are required" });
     }
-
-    // Find OTP record
-    const otpRecord = await OTP.findOne({ email, type: 'login' })
+    const otpRecord = await OTP.findOne({ email, type: "login" });
     if (!otpRecord) {
-      return res.status(400).json({ message: "OTP not found or expired" })
+      return res.status(400).json({ message: "OTP not found or expired" });
     }
-
-    // Check if OTP is expired
     if (new Date() > otpRecord.otpExpiry) {
-      await OTP.findOneAndDelete({ email, type: 'login' })
-      return res.status(400).json({ message: "OTP expired" })
+      await OTP.findOneAndDelete({ email, type: "login" });
+      return res.status(400).json({ message: "OTP expired" });
     }
-
-    // Verify OTP
     if (otpRecord.otp !== otp) {
-      return res.status(400).json({ message: "Invalid OTP" })
+      return res.status(400).json({ message: "Invalid OTP" });
     }
-
-    // Find user
-    const user = await User.findOne({ email })
+    const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ message: "User not found" })
+      return res.status(400).json({ message: "User not found" });
     }
-
-    // Delete OTP record
-    await OTP.findOneAndDelete({ email, type: 'login' })
-
-    // Generate token
-    let token = await genToken(user._id)
+    await OTP.findOneAndDelete({ email, type: "login" });
+    let token = await genToken(user._id);
     res.cookie("token", token, {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
       sameSite: "strict",
       secure: process.env.NODE_ENVIRONMENT === "production"
-    })
-
+    });
+    // ✅ Corrected: Added token, _id, and email to the JSON response
     return res.status(200).json({
       message: "Login successful",
+      token: token,
       user: {
         _id: user._id,
+        email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
         userName: user.userName,
-        email: user.email
       }
-    })
-
+    });
   } catch (error) {
-    console.log(error)
-    return res.status(500).json({ message: "Login failed" })
+    console.log(error);
+    return res.status(500).json({ message: "Login failed" });
   }
-}
+};
 
+// Resend OTP
 export const resendOTP = async (req, res) => {
   try {
-    const { email, type } = req.body
-
+    const { email, type } = req.body;
     if (!email || !type) {
-      return res.status(400).json({ message: "Email and type are required" })
+      return res.status(400).json({ message: "Email and type are required" });
     }
-
-    // Find existing OTP record
-    const existingOTP = await OTP.findOne({ email, type })
+    const existingOTP = await OTP.findOne({ email, type });
     if (!existingOTP) {
-      return res.status(400).json({ message: "No OTP request found" })
+      return res.status(400).json({ message: "No OTP request found" });
     }
-
-    // Generate new OTP
-    const otp = generateOTP()
-    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000)
-
-    // Update OTP
-    existingOTP.otp = otp
-    existingOTP.otpExpiry = otpExpiry
-    await existingOTP.save()
-
-    // Send OTP email
-    await sendOTPEmail(email, otp, type === 'signup' ? 'Sign Up' : 'Login')
-
-    return res.status(200).json({
-      message: "OTP resent successfully",
-      email: email
-    })
-
+    const otp = generateOTP();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+    existingOTP.otp = otp;
+    existingOTP.otpExpiry = otpExpiry;
+    await existingOTP.save();
+    await sendOTPEmail(email, otp, type === "signup" ? "Sign Up" : "Login");
+    return res.status(200).json({ message: "OTP resent successfully", email });
   } catch (error) {
-    console.log(error)
-    return res.status(500).json({ message: "Failed to resend OTP" })
+    console.log(error);
+    return res.status(500).json({ message: "Failed to resend OTP" });
   }
-}
+};
 
+// Logout
 export const logOut = async (req, res) => {
   try {
-    res.clearCookie("token")
-    return res.status(200).json({ message: "Logged out successfully" })
+    res.clearCookie("token");
+    return res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
-    console.log(error)
-    return res.status(500).json({ message: "Logout error" })
+    console.log(error);
+    return res.status(500).json({ message: "Logout error" });
   }
-}
+};

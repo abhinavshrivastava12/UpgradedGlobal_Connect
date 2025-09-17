@@ -80,6 +80,12 @@ function Login() {
         { withCredentials: true }
       );
       setSuccess(result.data.message);
+      
+      // ✅ Corrected: Save data to local storage for persistent authentication
+      localStorage.setItem('token', result.data.token);
+      localStorage.setItem('userId', result.data.user._id);
+      localStorage.setItem('email', result.data.user.email);
+      
       setUserData(result.data.user);
       navigate("/");
     } catch (error) {
