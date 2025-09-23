@@ -6,7 +6,7 @@ import { BrowserRouter } from 'react-router-dom';
 
 // Context imports (default exports, exact capitalization)
 import AuthContext from './context/AuthContext.jsx';
-import UserContext from '../context/UserContext.jsx';
+import UserContext from './context/UserContext.jsx';
 
 createRoot(document.getElementById('root')).render(
   <BrowserRouter>
