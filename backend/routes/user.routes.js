@@ -5,7 +5,7 @@ import {
   getSuggestedUser,
   search,
   updateProfile,
-  getUserStats,   // 👈 नया controller
+  getUserStats,
 } from "../controllers/user.controllers.js";
 import isAuth from "../middlewares/isAuth.js";
 import upload from "../middlewares/multer.js";
@@ -35,7 +35,7 @@ userRouter.get("/search", isAuth, search);
 // Suggested users
 userRouter.get("/suggestedusers", isAuth, getSuggestedUser);
 
-// ✅ User stats route (fixes frontend error)
+// User stats route
 userRouter.get("/stats", isAuth, getUserStats);
 
 export default userRouter;

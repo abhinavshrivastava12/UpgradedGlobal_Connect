@@ -27,7 +27,7 @@ const userSchema = new mongoose.Schema({
     },
     isEmailVerified: {
         type: Boolean,
-        default: true // Since we're using OTP verification
+        default: true
     },
     profileImage: {
         type: String,

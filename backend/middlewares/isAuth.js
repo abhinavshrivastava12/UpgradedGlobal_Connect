@@ -20,7 +20,7 @@ const isAuth = async (req, res, next) => {
         if (!token && req.headers.authorization) {
             const authHeader = req.headers.authorization;
             if (authHeader.startsWith('Bearer ')) {
-                token = authHeader.substring(7); // Remove 'Bearer ' prefix
+                token = authHeader.substring(7);
                 console.log("Token found in Authorization header");
             }
         }
@@ -37,12 +37,11 @@ const isAuth = async (req, res, next) => {
         
         console.log("Token verified successfully for user:", verifyToken.userId);
         req.userId = verifyToken.userId;
-        req.user = verifyToken; // Store full token payload if needed
+        req.user = verifyToken;
         next();
     } catch (error) {
         console.log("Auth middleware error:", error.message);
         
-        // Handle specific JWT errors
         if (error.name === 'JsonWebTokenError') {
             return res.status(401).json({ message: "Invalid token format" });
         }

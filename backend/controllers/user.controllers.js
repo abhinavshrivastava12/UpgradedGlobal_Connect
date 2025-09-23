@@ -1,6 +1,6 @@
 import uploadOnCloudinary from "../config/cloudinary.js";
 import User from "../models/user.model.js";
-import Post from "../models/post.model.js"; // 👈 stats के लिए ज़रूरी
+import Post from "../models/post.model.js";
 
 // -------------------- Get Current User --------------------
 export const getCurrentUser = async (req, res) => {
@@ -124,14 +124,12 @@ export const getUserStats = async (req, res) => {
     const postsCount = await Post.countDocuments({ author: userId });
     const user = await User.findById(userId).select("followers following");
 
-    // Add a null check for the user object
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
     res.json({
       posts: postsCount,
-      // Use optional chaining or logical OR to safely access length
       followers: user.followers?.length || 0,
       following: user.following?.length || 0,
     });
