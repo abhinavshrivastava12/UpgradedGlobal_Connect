@@ -1,11 +1,14 @@
 import dotenv from "dotenv";
-dotenv.config({ path: "./.env" });
-
 import express from "express";
-import connectDb from "./config/db.js";
-import authRouter from "./routes/auth.routes.js";
+import http from "http";
+import { Server } from "socket.io";
+import jwt from "jsonwebtoken";
 import cookieParser from "cookie-parser";
 import cors from "cors";
+
+// Local imports
+import connectDb from "./config/db.js";
+import authRouter from "./routes/auth.routes.js";
 import userRouter from "./routes/user.routes.js";
 import postRouter from "./routes/post.routes.js";
 import connectionRouter from "./routes/connection.routes.js";
@@ -14,38 +17,36 @@ import aiRoutes from "./routes/ai.routes.js";
 import jobRoutes from "./routes/job.routes.js";
 import chatRoutes from "./routes/chat.routes.js";
 import agoraRoutes from "./routes/agora.routes.js";
-import http from "http";
-import { Server } from "socket.io";
-import jwt from "jsonwebtoken";
 import Message from "./models/Message.js";
+
+// Load environment variables from .env file
+dotenv.config({ path: "./.env" });
 
 // -------------------- APP + SERVER --------------------
 const app = express();
 const server = http.createServer(app);
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://upgradedglobal-connect-1.onrender.com"
-];
-
-export const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins,
-    credentials: true,
-  },
-});
+// Use a dynamic port for deployment
+const port = process.env.PORT || 8000;
 
 // -------------------- MIDDLEWARE --------------------
-app.use(express.json());
-app.use(cookieParser());
+app.use(express.json()); // Body parser for JSON
+app.use(cookieParser()); // Cookie parser
+
+// Configure CORS for local development and production
+const allowedOrigins = ["http://localhost:5173", "https://your-deployed-frontend-url.com"]; // Add your deployed frontend URL here
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
   })
 );
-
-const port = process.env.PORT || 8000;
 
 // -------------------- API ROUTES --------------------
 app.use("/api/auth", authRouter);
@@ -58,13 +59,19 @@ app.use("/api/ai", aiRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/agora", agoraRoutes);
 
-// -------------------- SOCKET.IO LOGIC --------------------
+// -------------------- SOCKET.IO SETUP --------------------
+export const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    credentials: true,
+  },
+});
 
-// Maps - Keep your existing export name for compatibility
+// Maps to track user presence
 export const userSocketMap = new Map(); // userId -> socketId
 const activeUsers = {}; // socketId -> { userId, email, lastSeen }
 
-// Send online users
+// Helper function to send the list of online users to all clients
 const sendOnlineUsers = () => {
   const users = Object.values(activeUsers).map((u) => ({
     id: u.userId,
@@ -74,59 +81,53 @@ const sendOnlineUsers = () => {
   io.emit("onlineUsers", users);
 };
 
-// Find socket by userId
+// Helper function to find a socket ID by user ID
 const findSocketByUserId = (userId) => {
   return userSocketMap.get(userId);
 };
 
+// -------------------- SOCKET.IO LOGIC --------------------
 io.on("connection", (socket) => {
   console.log("⚡ New socket connected:", socket.id);
 
-  // ---------------- Register User ----------------
+  // ---------------- Register User on 'join' ----------------
   socket.on("join", ({ token, email, userId }) => {
     try {
       if (!userId || !token) {
         console.error("Missing userId or token");
         socket.emit("error", { message: "Missing authentication data" });
-        socket.disconnect();
         return;
       }
 
-      // Verify JWT
+      // Verify JWT token for authentication
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      // Additional validation: ensure the userId matches the token
+      
+      // Ensure the user ID from the client matches the user ID in the token payload
       if (decoded.userId !== userId && decoded.id !== userId) {
         console.error("User ID mismatch in token");
         socket.emit("error", { message: "Invalid authentication" });
-        socket.disconnect();
         return;
       }
 
-      // Remove old socket if same user already connected
+      // Handle multiple connections from the same user by disconnecting the old one
       const oldSocketId = userSocketMap.get(userId);
       if (oldSocketId && oldSocketId !== socket.id) {
         console.log(`Removing old connection for user ${userId}: ${oldSocketId}`);
-        if (activeUsers[oldSocketId]) {
-          delete activeUsers[oldSocketId];
-        }
-        userSocketMap.delete(userId);
-        // Disconnect the old socket
         const oldSocket = io.sockets.sockets.get(oldSocketId);
         if (oldSocket) {
-          oldSocket.disconnect();
+          oldSocket.disconnect(true); // Disconnect the old socket gracefully
         }
       }
 
-      // Save new mapping
+      // Store the new user-socket mapping
       userSocketMap.set(userId, socket.id);
       activeUsers[socket.id] = { userId, email, lastSeen: new Date() };
 
       console.log(`✅ Registered: ${userId} (${email}) -> ${socket.id}`);
-
-      // Join user to their own room for private messages
+      
+      // Join a private room for the user to receive private messages/notifications
       socket.join(`user_${userId}`);
-
+      
       sendOnlineUsers();
     } catch (err) {
       console.error("❌ Auth failed:", err.message);
@@ -135,20 +136,10 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ---------------- Typing Indicator ----------------
-  socket.on("typing", (receiverUserId) => {
-    const receiverSocketId = findSocketByUserId(receiverUserId);
-    if (receiverSocketId) {
-      const senderEmail = activeUsers[socket.id]?.email;
-      if (senderEmail) {
-        io.to(receiverSocketId).emit("typing", senderEmail);
-      }
-    }
-  });
-
-  // ---------------- Private Chat ----------------
-  socket.on("sendMessage", async ({ userId, to, text, timestamp }) => {
+  // ---------------- Private Chat: sendMessage ----------------
+  socket.on("sendMessage", async ({ userId, to, text }) => {
     try {
+      // Validate that the sender matches the authenticated user
       const senderData = activeUsers[socket.id];
       if (!senderData || senderData.userId !== userId) {
         console.error("Unauthorized message send attempt");
@@ -161,23 +152,31 @@ io.on("connection", (socket) => {
         return;
       }
 
+      const timestamp = new Date();
+      
+      // Save message to database
       const newMessage = new Message({
         from: userId,
         to,
         text: text.trim(),
-        timestamp: timestamp || new Date().toISOString(),
+        timestamp,
       });
       await newMessage.save();
       console.log("💾 Message saved to database");
 
+      // Send message to both sender and receiver
       const receiverSocketId = findSocketByUserId(to);
       const msg = {
         from: userId,
         text: text.trim(),
-        timestamp: timestamp || new Date().toISOString(),
+        timestamp: timestamp.toISOString(),
         user: senderData.email,
       };
 
+      // Emit to sender for immediate UI update
+      socket.emit("message", msg);
+
+      // Emit to receiver if they are online
       if (receiverSocketId) {
         io.to(receiverSocketId).emit("message", msg);
         console.log(`📤 Message sent from ${userId} to ${to}`);
@@ -190,13 +189,13 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ---------------- Agora Call System ----------------
+  // ---------------- Call System: agoraCallUser ----------------
   socket.on("agoraCallUser", ({ to, channelName, callType, from, email }) => {
     try {
       const callerData = activeUsers[socket.id];
       if (!callerData || callerData.userId !== from) {
         console.error("Unauthorized call attempt");
-        socket.emit("error", { message: "Unauthorized call attempt" });
+        socket.emit("agoraCallFailed", { message: "Unauthorized call attempt" });
         return;
       }
 
@@ -208,7 +207,7 @@ io.on("connection", (socket) => {
           channelName,
           callType,
           from,
-          email: callerData.email,
+          email: callerData.email, // Use authenticated email
         });
         console.log(`📞 Call notification sent to ${to}`);
       } else {
@@ -221,75 +220,73 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ---------------- Call System: agoraCallAccepted/Declined/End ----------------
   socket.on("agoraCallAccepted", ({ to }) => {
-    try {
-      const callerSocketId = findSocketByUserId(to);
-      if (callerSocketId) {
-        io.to(callerSocketId).emit("agoraCallAccepted");
-        console.log(`✅ Call accepted notification sent to ${to}`);
-      }
-    } catch (error) {
-      console.error("❌ Error processing call acceptance:", error.message);
+    const callerSocketId = findSocketByUserId(to);
+    if (callerSocketId) {
+      io.to(callerSocketId).emit("agoraCallAccepted");
+      console.log(`✅ Call accepted notification sent to ${to}`);
     }
   });
 
   socket.on("agoraCallDeclined", ({ to }) => {
-    try {
-      const callerSocketId = findSocketByUserId(to);
-      if (callerSocketId) {
-        io.to(callerSocketId).emit("agoraCallDeclined");
-        console.log(`❌ Call declined notification sent to ${to}`);
-      }
-    } catch (error) {
-      console.error("❌ Error processing call decline:", error.message);
+    const callerSocketId = findSocketByUserId(to);
+    if (callerSocketId) {
+      io.to(callerSocketId).emit("agoraCallDeclined");
+      console.log(`❌ Call declined notification sent to ${to}`);
     }
   });
 
   socket.on("agoraEndCall", ({ to }) => {
-    try {
-      const receiverSocketId = findSocketByUserId(to);
-      if (receiverSocketId) {
-        io.to(receiverSocketId).emit("agoraEndCall");
-        console.log(`📞 Call end notification sent to ${to}`);
+    const receiverSocketId = findSocketByUserId(to);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("agoraEndCall");
+      console.log(`📞 Call end notification sent to ${to}`);
+    }
+  });
+  
+  // ---------------- Typing Indicator ----------------
+  socket.on("typing", (receiverUserId) => {
+    const receiverSocketId = findSocketByUserId(receiverUserId);
+    if (receiverSocketId) {
+      const senderEmail = activeUsers[socket.id]?.email;
+      if (senderEmail) {
+        io.to(receiverSocketId).emit("typing", senderEmail);
       }
-    } catch (error) {
-      console.error("❌ Error processing call end:", error.message);
     }
   });
 
   // ---------------- Disconnect Handler ----------------
   socket.on("disconnect", (reason) => {
     console.log(`❌ Socket disconnected: ${socket.id}, Reason: ${reason}`);
+    
+    if (activeUsers[socket.id]) {
+      const userData = activeUsers[socket.id];
+      userData.lastSeen = new Date();
 
-    try {
-      if (activeUsers[socket.id]) {
-        const userData = activeUsers[socket.id];
-        userData.lastSeen = new Date();
-
-        userSocketMap.delete(userData.userId);
-        delete activeUsers[socket.id];
-
-        console.log(`🔄 Cleaned up user: ${userData.userId} (${userData.email})`);
-        sendOnlineUsers();
-      }
-    } catch (error) {
-      console.error("❌ Error during disconnect cleanup:", error.message);
+      // Remove from userSocketMap and activeUsers
+      userSocketMap.delete(userData.userId);
+      delete activeUsers[socket.id];
+      
+      console.log(`🔄 Cleaned up user: ${userData.userId} (${userData.email})`);
+      sendOnlineUsers();
     }
   });
 
+  // ---------------- Global Socket Error Handler ----------------
   socket.on("error", (error) => {
     console.error(`❌ Socket error for ${socket.id}:`, error);
   });
 });
 
 // -------------------- GLOBAL ERROR HANDLERS --------------------
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-process.on("uncaughtException", (error) => {
-  console.error("UncaughtException:", error);
-  if (process.env.NODE_ENV !== "production") {
+process.on('uncaughtException', (error) => {
+  console.error('UncaughtException:', error);
+  if (process.env.NODE_ENV !== 'production') {
     process.exit(1);
   }
 });

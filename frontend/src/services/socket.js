@@ -1,13 +1,33 @@
 // src/services/socket.js
 import { io } from "socket.io-client";
 
-// Pass auth.userId if you have it at init time; otherwise call register() after login.
-export const makeSocket = (serverUrl, userId) => {
-  const socket = io(serverUrl, {
+let socket;
+
+export const initSocket = (serverUrl, { userId, email, token }) => {
+  if (!userId || !token) return null; // prevent unauthed socket
+
+  socket = io(serverUrl, {
     withCredentials: true,
-    auth: userId ? { userId } : undefined
+    autoConnect: false, // connect manually after registration
   });
 
-  const register = (id) => socket.emit("register", id);
-  return { socket, register };
+  const register = () => {
+    socket.emit("join", { userId, email, token });
+  };
+
+  // Optional: reconnect on disconnect
+  socket.on("connect", () => {
+    console.log("✅ Socket connected:", socket.id);
+    register();
+  });
+
+  socket.on("disconnect", (reason) => {
+    console.log("❌ Socket disconnected:", reason);
+  });
+
+  socket.on("error", (err) => {
+    console.error("❌ Socket error:", err);
+  });
+
+  return socket;
 };
