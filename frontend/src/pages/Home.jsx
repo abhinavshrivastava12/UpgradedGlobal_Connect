@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useRef, useState } from "react";
 import dp from "../assets/dp.webp";
 import { FiPlus, FiCamera, FiSun, FiMoon, FiTrendingUp, FiHeart, FiMessageCircle, FiShare2 } from "react-icons/fi";
-import { userDataContext } from "../context/userContext";
+import { userDataContext } from "../context/UserContext";
 import EditProfile from "../components/EditProfile";
 import { RxCross1 } from "react-icons/rx";
 import { BsImage, BsEmojiSmile, BsBookmark } from "react-icons/bs";

@@ -372,7 +372,7 @@ import { RxCross1 } from "react-icons/rx";
 import { FiPlus, FiCamera } from "react-icons/fi";
 import axios from "axios";
 import dp from "../assets/dp.webp";
-import { userDataContext } from "../context/userContext";
+import { userDataContext } from "../context/UserContext";
 import { authDataContext } from "../context/AuthContext";
 
 function EditProfile() {
