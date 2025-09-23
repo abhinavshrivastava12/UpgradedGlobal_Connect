@@ -31,159 +31,164 @@ export const sendOTPEmail = async (email, otp, type) => {
     to: email,
     subject: `Your ${type} OTP`,
     html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #24b2ff; text-align: center;">Verify Your Account</h2>
-        <div style="background: #f8f9fa; padding: 30px; border-radius: 10px; text-align: center;">
-          <h3>Your OTP Code</h3>
-          <div style="font-size: 32px; font-weight: bold; color: #24b2ff; letter-spacing: 5px; margin: 20px 0;">
-            ${otp}
-          </div>
-          <p style="color: #666;">This OTP will expire in 10 minutes</p>
-          <p style="color: #666;">If you didn't request this, please ignore this email.</p>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+        <h2 style="color: #1A1F71; text-align: center;">OTP for Your Account</h2>
+        <p style="font-size: 16px; color: #555;">Dear User,</p>
+        <p style="font-size: 16px; color: #555;">Your One-Time Password for ${type} is:</p>
+        <div style="text-align: center; margin: 20px 0;">
+          <h1 style="font-size: 32px; font-weight: bold; color: #1A1F71; letter-spacing: 5px; padding: 10px 20px; background-color: #f0f0f0; border-radius: 5px; display: inline-block;">${otp}</h1>
         </div>
+        <p style="font-size: 14px; color: #888;">This OTP is valid for 10 minutes. Do not share this with anyone.</p>
+        <p style="font-size: 16px; color: #555;">Thank you,<br/>The Connect Team</p>
       </div>
     `
   };
-  await transporter.sendMail(mailOptions);
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`OTP sent successfully to ${email}`);
+  } catch (error) {
+    console.error(`Error sending email to ${email}:`, error);
+    throw new Error("Failed to send OTP email");
+  }
 };
 
-// Sign Up: Send OTP
+// -------------------- Sign Up Routes --------------------
 export const sendSignUpOTP = async (req, res) => {
   try {
     const { firstName, lastName, userName, email, password } = req.body;
     if (!firstName || !lastName || !userName || !email || !password) {
       return res.status(400).json({ message: "All fields are required" });
     }
-    if (password.length < 8) {
-      return res.status(400).json({ message: "Password must be at least 8 characters" });
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email already exists" });
     }
-    if (await User.findOne({ email })) {
-      return res.status(400).json({ message: "Email already exists!" });
-    }
-    if (await User.findOne({ userName })) {
-      return res.status(400).json({ message: "Username already exists!" });
-    }
+
     const otp = generateOTP();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-    const hashedPassword = await bcrypt.hash(password, 10);
-    await OTP.findOneAndDelete({ email, type: "signup" });
-    await OTP.create({
-      email,
-      otp,
-      otpExpiry,
-      userData: { firstName, lastName, userName, email, password: hashedPassword },
-      type: "signup"
-    });
+
+    // Save or update OTP in the database
+    const newOTP = await OTP.findOneAndUpdate(
+      { email, type: "signup" },
+      { otp, otpExpiry, userData: req.body },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    // ✅ FIXED: Using await to handle asynchronous email sending
     await sendOTPEmail(email, otp, "Sign Up");
-    return res.status(200).json({ message: "OTP sent to your email", email });
+
+    return res.status(200).json({ message: "OTP sent successfully" });
   } catch (error) {
-    console.log(error);
-    return res.status(500).json({ message: "Failed to send OTP" });
+    console.error("sendSignUpOTP error:", error);
+    return res.status(500).json({ message: "Something went wrong" });
   }
 };
 
-// Sign Up: Verify OTP (Corrected)
 export const verifySignUpOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
-    if (!email || !otp) {
-      return res.status(400).json({ message: "Email and OTP are required" });
-    }
     const otpRecord = await OTP.findOne({ email, type: "signup" });
+
     if (!otpRecord) {
-      return res.status(400).json({ message: "OTP not found or expired" });
+      return res.status(400).json({ message: "OTP not found or has expired" });
     }
-    if (new Date() > otpRecord.otpExpiry) {
-      await OTP.findOneAndDelete({ email, type: "signup" });
-      return res.status(400).json({ message: "OTP expired" });
+    if (otpRecord.otp !== otp || otpRecord.otpExpiry < Date.now()) {
+      return res.status(400).json({ message: "Invalid or expired OTP" });
     }
-    if (otpRecord.otp !== otp) {
-      return res.status(400).json({ message: "Invalid OTP" });
-    }
-    const user = await User.create(otpRecord.userData);
-    await OTP.findOneAndDelete({ email, type: "signup" });
-    let token = await genToken(user._id);
+
+    const userData = otpRecord.userData;
+    const hashedPassword = await bcrypt.hash(userData.password, 10);
+    const newUser = await User.create({
+      ...userData,
+      password: hashedPassword,
+      isEmailVerified: true,
+    });
+
+    await OTP.deleteOne({ email, type: "signup" });
+
+    // ✅ FIXED: Generating and setting an HTTP-only cookie
+    const token = await genToken(newUser._id);
     res.cookie("token", token, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: "strict",
-      secure: process.env.NODE_ENVIRONMENT === "production"
     });
-    // ✅ Corrected: Added token, _id, and email to the JSON response
+
     return res.status(201).json({
       message: "Account created successfully",
-      token: token,
       user: {
-        _id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        userName: user.userName,
-      }
+        _id: newUser._id,
+        email: newUser.email,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
+        userName: newUser.userName,
+      },
     });
   } catch (error) {
-    console.log(error);
-    return res.status(500).json({ message: "Verification failed" });
+    console.error("verifySignUpOTP error:", error);
+    return res.status(500).json({ message: "Something went wrong" });
   }
 };
 
-// Login: Send OTP
+// -------------------- Login Routes --------------------
 export const sendLoginOTP = async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ message: "Email is required" });
-    }
     const user = await User.findOne({ email });
+
     if (!user) {
-      return res.status(400).json({ message: "User does not exist!" });
+      return res.status(404).json({ message: "User not found" });
     }
+
     const otp = generateOTP();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-    await OTP.findOneAndDelete({ email, type: "login" });
-    await OTP.create({ email, otp, otpExpiry, type: "login" });
+    await OTP.findOneAndUpdate(
+      { email, type: "login" },
+      { otp, otpExpiry },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    // ✅ FIXED: Using await to handle asynchronous email sending
     await sendOTPEmail(email, otp, "Login");
-    return res.status(200).json({ message: "OTP sent to your email", email });
+
+    return res.status(200).json({ message: "OTP sent to your email" });
   } catch (error) {
-    console.log(error);
-    return res.status(500).json({ message: "Failed to send OTP" });
+    console.error("sendLoginOTP error:", error);
+    return res.status(500).json({ message: "Something went wrong" });
   }
 };
 
-// Login: Verify OTP (Corrected)
 export const verifyLoginOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
-    if (!email || !otp) {
-      return res.status(400).json({ message: "Email and OTP are required" });
-    }
     const otpRecord = await OTP.findOne({ email, type: "login" });
+
     if (!otpRecord) {
-      return res.status(400).json({ message: "OTP not found or expired" });
+      return res.status(400).json({ message: "Invalid or expired OTP" });
     }
-    if (new Date() > otpRecord.otpExpiry) {
-      await OTP.findOneAndDelete({ email, type: "login" });
-      return res.status(400).json({ message: "OTP expired" });
+    if (otpRecord.otp !== otp || otpRecord.otpExpiry < Date.now()) {
+      return res.status(400).json({ message: "Invalid or expired OTP" });
     }
-    if (otpRecord.otp !== otp) {
-      return res.status(400).json({ message: "Invalid OTP" });
-    }
-    const user = await User.findOne({ email });
+
+    const user = await User.findOne({ email }).select("-password");
     if (!user) {
-      return res.status(400).json({ message: "User not found" });
+      return res.status(404).json({ message: "User not found" });
     }
-    await OTP.findOneAndDelete({ email, type: "login" });
-    let token = await genToken(user._id);
+
+    await OTP.deleteOne({ email, type: "login" });
+
+    // ✅ FIXED: Generating and setting an HTTP-only cookie
+    const token = await genToken(user._id);
     res.cookie("token", token, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: "strict",
-      secure: process.env.NODE_ENVIRONMENT === "production"
     });
-    // ✅ Corrected: Added token, _id, and email to the JSON response
+
     return res.status(200).json({
       message: "Login successful",
-      token: token,
       user: {
         _id: user._id,
         email: user.email,
@@ -193,12 +198,24 @@ export const verifyLoginOTP = async (req, res) => {
       }
     });
   } catch (error) {
-    console.log(error);
-    return res.status(500).json({ message: "Login failed" });
+    console.error("verifyLoginOTP error:", error);
+    return res.status(500).json({ message: "Something went wrong" });
   }
 };
 
-// Resend OTP
+// -------------------- Logout --------------------
+export const logOut = (req, res) => {
+  try {
+    // ✅ FIXED: Clearing the token cookie
+    res.clearCookie("token");
+    return res.status(200).json({ message: "Logged out successfully" });
+  } catch (error) {
+    console.error("logOut error:", error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+// -------------------- Resend OTP --------------------
 export const resendOTP = async (req, res) => {
   try {
     const { email, type } = req.body;
@@ -217,18 +234,7 @@ export const resendOTP = async (req, res) => {
     await sendOTPEmail(email, otp, type === "signup" ? "Sign Up" : "Login");
     return res.status(200).json({ message: "OTP resent successfully", email });
   } catch (error) {
-    console.log(error);
-    return res.status(500).json({ message: "Failed to resend OTP" });
-  }
-};
-
-// Logout
-export const logOut = async (req, res) => {
-  try {
-    res.clearCookie("token");
-    return res.status(200).json({ message: "Logged out successfully" });
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({ message: "Logout error" });
+    console.error("resendOTP error:", error);
+    return res.status(500).json({ message: "Something went wrong" });
   }
 };
