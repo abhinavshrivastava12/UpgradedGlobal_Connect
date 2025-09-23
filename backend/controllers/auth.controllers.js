@@ -76,7 +76,6 @@ export const sendSignUpOTP = async (req, res) => {
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
-    // ✅ FIXED: Using await to handle asynchronous email sending
     await sendOTPEmail(email, otp, "Sign Up");
 
     return res.status(200).json({ message: "OTP sent successfully" });
@@ -108,11 +107,12 @@ export const verifySignUpOTP = async (req, res) => {
 
     await OTP.deleteOne({ email, type: "signup" });
 
-    // ✅ FIXED: Generating and setting an HTTP-only cookie
     const token = await genToken(newUser._id);
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
+      // ✅ FIX: cookie ko common domain ke liye set karna
+      domain: '.onrender.com', 
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -150,7 +150,6 @@ export const sendLoginOTP = async (req, res) => {
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
-    // ✅ FIXED: Using await to handle asynchronous email sending
     await sendOTPEmail(email, otp, "Login");
 
     return res.status(200).json({ message: "OTP sent to your email" });
@@ -179,11 +178,12 @@ export const verifyLoginOTP = async (req, res) => {
 
     await OTP.deleteOne({ email, type: "login" });
 
-    // ✅ FIXED: Generating and setting an HTTP-only cookie
     const token = await genToken(user._id);
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
+      // ✅ FIX: cookie ko common domain ke liye set karna
+      domain: '.onrender.com', 
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -206,8 +206,11 @@ export const verifyLoginOTP = async (req, res) => {
 // -------------------- Logout --------------------
 export const logOut = (req, res) => {
   try {
-    // ✅ FIXED: Clearing the token cookie
-    res.clearCookie("token");
+    res.clearCookie("token", {
+      secure: process.env.NODE_ENV === "production",
+      // ✅ FIX: logout mein bhi domain specify karna
+      domain: '.onrender.com', 
+    });
     return res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
     console.error("logOut error:", error);
