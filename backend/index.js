@@ -5,6 +5,8 @@ import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import cookieParser from "cookie-parser";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from 'url';
 
 // Local imports
 import connectDb from "./config/db.js";
@@ -29,15 +31,18 @@ const server = http.createServer(app);
 // Use a dynamic port for deployment
 const port = process.env.PORT || 8000;
 
+// Get the directory name for serving static files
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // -------------------- MIDDLEWARE --------------------
 app.use(express.json()); // Body parser for JSON
 app.use(cookieParser()); // Cookie parser
 
-// **FIXED CORS CONFIGURATION**
-// Allow both development and production origins
+// **CORS CONFIGURATION (Now only needed for API calls)**
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://upgradedglobal-connect-1.onrender.com", // Your deployed frontend URL
+  "https://upgradedglobal-connect-1.onrender.com", 
 ];
 
 app.use(
@@ -67,7 +72,7 @@ app.use("/api/agora", agoraRoutes);
 // -------------------- SOCKET.IO SETUP --------------------
 export const io = new Server(server, {
   cors: {
-    origin: allowedOrigins, // **FIXED SOCKET.IO CORS**
+    origin: allowedOrigins,
     credentials: true,
   },
 });
@@ -95,7 +100,6 @@ const findSocketByUserId = (userId) => {
 io.on("connection", (socket) => {
   console.log("⚡ New socket connected:", socket.id);
 
-  // ---------------- Register User on 'join' ----------------
   socket.on("join", ({ token, email, userId }) => {
     try {
       if (!userId || !token) {
@@ -136,7 +140,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ---------------- Private Chat: sendMessage ----------------
   socket.on("sendMessage", async ({ userId, to, text }) => {
     try {
       const senderData = activeUsers[socket.id];
@@ -184,7 +187,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ---------------- Call System: agoraCallUser ----------------
   socket.on("agoraCallUser", ({ to, channelName, callType, from, email }) => {
     try {
       const callerData = activeUsers[socket.id];
@@ -215,7 +217,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ---------------- Call System: agoraCallAccepted/Declined/End ----------------
   socket.on("agoraCallAccepted", ({ to }) => {
     const callerSocketId = findSocketByUserId(to);
     if (callerSocketId) {
@@ -240,7 +241,6 @@ io.on("connection", (socket) => {
     }
   });
   
-  // ---------------- Typing Indicator ----------------
   socket.on("typing", (receiverUserId) => {
     const receiverSocketId = findSocketByUserId(receiverUserId);
     if (receiverSocketId) {
@@ -251,7 +251,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ---------------- Disconnect Handler ----------------
   socket.on("disconnect", (reason) => {
     console.log(`❌ Socket disconnected: ${socket.id}, Reason: ${reason}`);
     
@@ -267,11 +266,18 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ---------------- Global Socket Error Handler ----------------
   socket.on("error", (error) => {
     console.error(`❌ Socket error for ${socket.id}:`, error);
   });
 });
+
+// -------------------- Serve Frontend Static Files --------------------
+// This needs to be after all API routes so they are not intercepted.
+app.use(express.static(path.join(__dirname, 'dist'))); // 👈 Replace 'dist' with your frontend build folder name
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
 
 // -------------------- GLOBAL ERROR HANDLERS --------------------
 process.on('unhandledRejection', (reason, promise) => {
