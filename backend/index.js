@@ -33,8 +33,13 @@ const port = process.env.PORT || 8000;
 app.use(express.json()); // Body parser for JSON
 app.use(cookieParser()); // Cookie parser
 
-// Configure CORS for local development and production
-const allowedOrigins = ["http://localhost:5173", "https://your-deployed-frontend-url.com"]; // Add your deployed frontend URL here
+// **FIXED CORS CONFIGURATION**
+// Allow both development and production origins
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://upgradedglobal-connect-1.onrender.com", // Your deployed frontend URL
+];
+
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -62,7 +67,7 @@ app.use("/api/agora", agoraRoutes);
 // -------------------- SOCKET.IO SETUP --------------------
 export const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: allowedOrigins, // **FIXED SOCKET.IO CORS**
     credentials: true,
   },
 });
@@ -99,33 +104,28 @@ io.on("connection", (socket) => {
         return;
       }
 
-      // Verify JWT token for authentication
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       
-      // Ensure the user ID from the client matches the user ID in the token payload
       if (decoded.userId !== userId && decoded.id !== userId) {
         console.error("User ID mismatch in token");
         socket.emit("error", { message: "Invalid authentication" });
         return;
       }
 
-      // Handle multiple connections from the same user by disconnecting the old one
       const oldSocketId = userSocketMap.get(userId);
       if (oldSocketId && oldSocketId !== socket.id) {
         console.log(`Removing old connection for user ${userId}: ${oldSocketId}`);
         const oldSocket = io.sockets.sockets.get(oldSocketId);
         if (oldSocket) {
-          oldSocket.disconnect(true); // Disconnect the old socket gracefully
+          oldSocket.disconnect(true);
         }
       }
 
-      // Store the new user-socket mapping
       userSocketMap.set(userId, socket.id);
       activeUsers[socket.id] = { userId, email, lastSeen: new Date() };
 
       console.log(`✅ Registered: ${userId} (${email}) -> ${socket.id}`);
       
-      // Join a private room for the user to receive private messages/notifications
       socket.join(`user_${userId}`);
       
       sendOnlineUsers();
@@ -139,7 +139,6 @@ io.on("connection", (socket) => {
   // ---------------- Private Chat: sendMessage ----------------
   socket.on("sendMessage", async ({ userId, to, text }) => {
     try {
-      // Validate that the sender matches the authenticated user
       const senderData = activeUsers[socket.id];
       if (!senderData || senderData.userId !== userId) {
         console.error("Unauthorized message send attempt");
@@ -154,7 +153,6 @@ io.on("connection", (socket) => {
 
       const timestamp = new Date();
       
-      // Save message to database
       const newMessage = new Message({
         from: userId,
         to,
@@ -164,7 +162,6 @@ io.on("connection", (socket) => {
       await newMessage.save();
       console.log("💾 Message saved to database");
 
-      // Send message to both sender and receiver
       const receiverSocketId = findSocketByUserId(to);
       const msg = {
         from: userId,
@@ -173,10 +170,8 @@ io.on("connection", (socket) => {
         user: senderData.email,
       };
 
-      // Emit to sender for immediate UI update
       socket.emit("message", msg);
 
-      // Emit to receiver if they are online
       if (receiverSocketId) {
         io.to(receiverSocketId).emit("message", msg);
         console.log(`📤 Message sent from ${userId} to ${to}`);
@@ -207,7 +202,7 @@ io.on("connection", (socket) => {
           channelName,
           callType,
           from,
-          email: callerData.email, // Use authenticated email
+          email: callerData.email,
         });
         console.log(`📞 Call notification sent to ${to}`);
       } else {
@@ -264,7 +259,6 @@ io.on("connection", (socket) => {
       const userData = activeUsers[socket.id];
       userData.lastSeen = new Date();
 
-      // Remove from userSocketMap and activeUsers
       userSocketMap.delete(userData.userId);
       delete activeUsers[socket.id];
       
