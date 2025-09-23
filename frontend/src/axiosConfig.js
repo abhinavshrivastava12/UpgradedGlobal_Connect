@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const axiosInstance = axios.create({
-  baseURL: "http://localhost:8000", // backend port
+  baseURL: "https://upgradedglobal-connect.onrender.com", // backend port
   withCredentials: true,            // cookies send/receive
 });
 

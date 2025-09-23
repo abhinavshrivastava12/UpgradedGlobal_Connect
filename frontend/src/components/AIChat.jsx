@@ -18,7 +18,7 @@ function AIChat() {
     setLoading(true);
 
     try {
-      const res = await axios.post("http://localhost:8000/api/ai/get-res", { code: input });
+      const res = await axios.post("https://upgradedglobal-connect.onrender.com/api/ai/get-res", { code: input });
       const aiText = res.data?.reply || "Sorry, I couldn’t respond.";
       setMessages((prev) => [...prev, { from: "ai", text: aiText }]);
     } catch (error) {

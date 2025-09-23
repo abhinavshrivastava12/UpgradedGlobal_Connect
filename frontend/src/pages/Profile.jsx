@@ -9,7 +9,7 @@ import Post from '../components/Post';
 import ConnectionButton from '../components/ConnectionButton';
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:8000"); // Socket server URL
+const socket = io("https://upgradedglobal-connect.onrender.com"); // Socket server URL
 
 function Profile() {
   const { userData, edit, setEdit, postData, profileData, handleGetProfile, getPost } = useContext(userDataContext);

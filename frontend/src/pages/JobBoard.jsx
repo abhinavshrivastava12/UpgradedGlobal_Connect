@@ -42,7 +42,7 @@ function JobBoard() {
   // Fetch Jobs
   const fetchJobs = async () => {
     try {
-      const res = await axios.get("http://localhost:8000/api/jobs");
+      const res = await axios.get("https://upgradedglobal-connect.onrender.com/api/jobs");
       setJobs(res.data);
     } catch (error) {
       console.error("Fetch jobs error:", error);
@@ -71,7 +71,7 @@ function JobBoard() {
         }
       };
 
-      await axios.post("http://localhost:8000/api/jobs/add", {
+      await axios.post("https://upgradedglobal-connect.onrender.com/api/jobs/add", {
         title,
         company,
         location,
@@ -107,7 +107,7 @@ function JobBoard() {
         }
       };
 
-      await axios.delete(`http://localhost:8000/api/jobs/${jobId}`, config);
+      await axios.delete(`https://upgradedglobal-connect.onrender.com/api/jobs/${jobId}`, config);
       toast.success("Job deleted successfully!");
       fetchJobs();
     } catch (error) {
@@ -158,7 +158,7 @@ function JobBoard() {
       });
 
       const response = await axios.post(
-        "http://localhost:8000/api/jobs/apply", 
+        "https://upgradedglobal-connect.onrender.com/api/jobs/apply", 
         formData, 
         {
           headers: {
