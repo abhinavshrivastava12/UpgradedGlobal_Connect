@@ -23,9 +23,14 @@ import Message from "./models/Message.js";
 const app = express();
 const server = http.createServer(app);
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://upgradedglobal-connect-1.onrender.com"
+];
+
 export const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: allowedOrigins,
     credentials: true,
   },
 });
@@ -35,7 +40,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: allowedOrigins,
     credentials: true,
   })
 );
@@ -89,7 +94,7 @@ io.on("connection", (socket) => {
 
       // Verify JWT
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      
+
       // Additional validation: ensure the userId matches the token
       if (decoded.userId !== userId && decoded.id !== userId) {
         console.error("User ID mismatch in token");
@@ -118,10 +123,10 @@ io.on("connection", (socket) => {
       activeUsers[socket.id] = { userId, email, lastSeen: new Date() };
 
       console.log(`✅ Registered: ${userId} (${email}) -> ${socket.id}`);
-      
+
       // Join user to their own room for private messages
       socket.join(`user_${userId}`);
-      
+
       sendOnlineUsers();
     } catch (err) {
       console.error("❌ Auth failed:", err.message);
@@ -144,7 +149,6 @@ io.on("connection", (socket) => {
   // ---------------- Private Chat ----------------
   socket.on("sendMessage", async ({ userId, to, text, timestamp }) => {
     try {
-      // Validate that the sender matches the authenticated user
       const senderData = activeUsers[socket.id];
       if (!senderData || senderData.userId !== userId) {
         console.error("Unauthorized message send attempt");
@@ -157,7 +161,6 @@ io.on("connection", (socket) => {
         return;
       }
 
-      // Save message to database
       const newMessage = new Message({
         from: userId,
         to,
@@ -167,7 +170,6 @@ io.on("connection", (socket) => {
       await newMessage.save();
       console.log("💾 Message saved to database");
 
-      // Send message to receiver
       const receiverSocketId = findSocketByUserId(to);
       const msg = {
         from: userId,
@@ -191,7 +193,6 @@ io.on("connection", (socket) => {
   // ---------------- Agora Call System ----------------
   socket.on("agoraCallUser", ({ to, channelName, callType, from, email }) => {
     try {
-      // Validate that the caller matches the authenticated user
       const callerData = activeUsers[socket.id];
       if (!callerData || callerData.userId !== from) {
         console.error("Unauthorized call attempt");
@@ -207,7 +208,7 @@ io.on("connection", (socket) => {
           channelName,
           callType,
           from,
-          email: callerData.email, // Use authenticated email
+          email: callerData.email,
         });
         console.log(`📞 Call notification sent to ${to}`);
       } else {
@@ -259,18 +260,15 @@ io.on("connection", (socket) => {
   // ---------------- Disconnect Handler ----------------
   socket.on("disconnect", (reason) => {
     console.log(`❌ Socket disconnected: ${socket.id}, Reason: ${reason}`);
-    
+
     try {
       if (activeUsers[socket.id]) {
         const userData = activeUsers[socket.id];
         userData.lastSeen = new Date();
 
-        // Remove from userSocketMap
         userSocketMap.delete(userData.userId);
-        
-        // Remove from activeUsers
         delete activeUsers[socket.id];
-        
+
         console.log(`🔄 Cleaned up user: ${userData.userId} (${userData.email})`);
         sendOnlineUsers();
       }
@@ -279,21 +277,19 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ---------------- Error Handler ----------------
   socket.on("error", (error) => {
     console.error(`❌ Socket error for ${socket.id}:`, error);
   });
 });
 
 // -------------------- GLOBAL ERROR HANDLERS --------------------
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
 });
 
-process.on('uncaughtException', (error) => {
-  console.error('UncaughtException:', error);
-  // Don't exit the process in production, just log the error
-  if (process.env.NODE_ENV !== 'production') {
+process.on("uncaughtException", (error) => {
+  console.error("UncaughtException:", error);
+  if (process.env.NODE_ENV !== "production") {
     process.exit(1);
   }
 });
