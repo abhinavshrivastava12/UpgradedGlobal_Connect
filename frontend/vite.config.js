@@ -1,3 +1,4 @@
+// vite.config.js
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { NodeGlobalsPolyfillPlugin } from "@esbuild-plugins/node-globals-polyfill";
@@ -6,30 +7,10 @@ import path from "path";
 
 export default defineConfig({
   plugins: [react()],
-  resolve: {
-    alias: {
-      buffer: path.resolve(__dirname, "node_modules", "buffer/"),
-      events: path.resolve(__dirname, "node_modules", "events/"),
-      util: path.resolve(__dirname, "node_modules", "util/"),
-      stream: path.resolve(__dirname, "node_modules", "stream-browserify"),
-      process: "process/browser",
-    },
+  // ... other configs
+  build: {
+    sourcemap: true, // 👈 Add this line to enable source maps
   },
-  optimizeDeps: {
-    esbuildOptions: {
-      define: {
-        global: "globalThis",
-      },
-      plugins: [
-        NodeGlobalsPolyfillPlugin({
-          process: true,
-          buffer: true,
-        }),
-        NodeModulesPolyfillPlugin(),
-      ],
-    },
-  },
-  // ✅ Add the proxy configuration to forward API calls
   server: {
     proxy: {
       '/api': 'http://localhost:8000'
