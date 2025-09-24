@@ -296,5 +296,3 @@ server.listen(port, () => {
   connectDb();
   console.log(`🚀 Server started on port ${port}`);
 });
-
-yeh lo bhai pura code jese tumne bola h krke dedo pr yeh CORS error nhi hat rha h bhai mai to haar gyi hu ab tum hi bacha skte ho
