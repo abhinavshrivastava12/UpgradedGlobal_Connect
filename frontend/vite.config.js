@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      buffer: path.resolve(__dirname, "node_modules", "buffer/"), 
+      buffer: path.resolve(__dirname, "node_modules", "buffer/"),
       events: path.resolve(__dirname, "node_modules", "events/"),
       util: path.resolve(__dirname, "node_modules", "util/"),
       stream: path.resolve(__dirname, "node_modules", "stream-browserify"),
@@ -18,7 +18,7 @@ export default defineConfig({
   optimizeDeps: {
     esbuildOptions: {
       define: {
-        global: "globalThis", // polyfill for global
+        global: "globalThis",
       },
       plugins: [
         NodeGlobalsPolyfillPlugin({
@@ -29,4 +29,10 @@ export default defineConfig({
       ],
     },
   },
+  // ✅ Add the proxy configuration to forward API calls
+  server: {
+    proxy: {
+      '/api': 'http://localhost:8000'
+    }
+  }
 });

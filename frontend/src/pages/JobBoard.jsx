@@ -32,10 +32,11 @@ function JobBoard() {
 
   // Add axios interceptor to include auth token
   useEffect(() => {
-    const token = localStorage.getItem('token'); // Adjust based on how you store your auth token
+    const token = localStorage.getItem('token');
     
     if (token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      axios.defaults.withCredentials = true;
     }
   }, []);
 
@@ -43,12 +44,20 @@ function JobBoard() {
   const fetchJobs = async () => {
     try {
       const res = await axios.get("/api/jobs");
-      setJobs(res.data);
+      
+      // ✅ Corrected: Check if the response data is an array
+      if (Array.isArray(res.data)) {
+        setJobs(res.data);
+      } else {
+        console.error("API response for jobs is not an array:", res.data);
+        setJobs([]);
+      }
     } catch (error) {
       console.error("Fetch jobs error:", error);
       if (error.response?.status === 401) {
         toast.error("Please login to continue");
       }
+      setJobs([]);
     }
   };
 
@@ -68,7 +77,8 @@ function JobBoard() {
       const config = {
         headers: {
           'Authorization': `Bearer ${token}`
-        }
+        },
+        withCredentials: true
       };
 
       await axios.post("/api/jobs/add", {
@@ -104,7 +114,8 @@ function JobBoard() {
       const config = {
         headers: {
           'Authorization': `Bearer ${token}`
-        }
+        },
+        withCredentials: true
       };
 
       await axios.delete(`/api/jobs/${jobId}`, config);
@@ -143,7 +154,6 @@ function JobBoard() {
     setIsApplying(true);
     
     try {
-      // Check if we have credentials (cookies will be sent automatically)
       const formData = new FormData();
       formData.append("name", applicantName);
       formData.append("email", applicantEmail);
@@ -164,7 +174,7 @@ function JobBoard() {
           headers: {
             "Content-Type": "multipart/form-data",
           },
-          withCredentials: true // This sends cookies with the request
+          withCredentials: true
         }
       );
 
@@ -180,7 +190,6 @@ function JobBoard() {
       console.error("Application error:", error);
       
       if (error.response) {
-        // Server responded with error status
         console.log("Error response data:", error.response.data);
         console.log("Error status:", error.response.status);
         
@@ -192,7 +201,6 @@ function JobBoard() {
           toast.error("Server error. Please try again later.");
         }
       } else if (error.request) {
-        // Network error
         toast.error("Network error. Please check your connection.");
       } else {
         toast.error("Failed to submit application.");
@@ -371,69 +379,69 @@ function JobBoard() {
       {isApplyModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 relative">
-                <button
-                    onClick={() => setIsApplyModalOpen(false)}
-                    className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100"
-                >
-                    <X className="w-5 h-5 text-gray-600" />
-                </button>
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">
-                    Apply for {selectedJob?.title} at {selectedJob?.company}
-                </h2>
-                <form className="space-y-4" onSubmit={handleApply}>
-                    <input
-                        type="text"
-                        placeholder="Your Name"
-                        value={applicantName}
-                        onChange={(e) => setApplicantName(e.target.value)}
-                        className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
-                        required
-                    />
-                    <input
-                        type="email"
-                        placeholder="Your Email"
-                        value={applicantEmail}
-                        onChange={(e) => setApplicantEmail(e.target.value)}
-                        className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
-                        required
-                    />
-                    <div className="relative flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-lg text-center">
-                        {resume ? (
-                            <p className="text-green-600">Resume uploaded: {resume.name}</p>
-                        ) : (
-                            <>
-                                <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                                <p className="text-gray-500 text-sm">
-                                    Upload your resume (PDF only)
-                                </p>
-                            </>
-                        )}
-                        <input
-                            type="file"
-                            accept=".pdf"
-                            onChange={handleResumeChange}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            style={{ zIndex: 1 }}
-                            required
-                        />
-                    </div>
-                    <div className="flex gap-3">
-                        <button
-                            type="button"
-                            onClick={() => setIsApplyModalOpen(false)}
-                            className="flex-1 py-3 border rounded-lg text-gray-700 hover:bg-gray-100"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={isApplying}
-                            className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {isApplying ? "Submitting..." : "Submit Application"}
-                        </button>
-                    </div>
-                </form>
+              <button
+                  onClick={() => setIsApplyModalOpen(false)}
+                  className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100"
+              >
+                  <X className="w-5 h-5 text-gray-600" />
+              </button>
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                  Apply for {selectedJob?.title} at {selectedJob?.company}
+              </h2>
+              <form className="space-y-4" onSubmit={handleApply}>
+                  <input
+                      type="text"
+                      placeholder="Your Name"
+                      value={applicantName}
+                      onChange={(e) => setApplicantName(e.target.value)}
+                      className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                      required
+                  />
+                  <input
+                      type="email"
+                      placeholder="Your Email"
+                      value={applicantEmail}
+                      onChange={(e) => setApplicantEmail(e.target.value)}
+                      className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                      required
+                  />
+                  <div className="relative flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-lg text-center">
+                      {resume ? (
+                          <p className="text-green-600">Resume uploaded: {resume.name}</p>
+                      ) : (
+                          <>
+                              <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                              <p className="text-gray-500 text-sm">
+                                  Upload your resume (PDF only)
+                              </p>
+                          </>
+                      )}
+                      <input
+                          type="file"
+                          accept=".pdf"
+                          onChange={handleResumeChange}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          style={{ zIndex: 1 }}
+                          required
+                      />
+                  </div>
+                  <div className="flex gap-3">
+                      <button
+                          type="button"
+                          onClick={() => setIsApplyModalOpen(false)}
+                          className="flex-1 py-3 border rounded-lg text-gray-700 hover:bg-gray-100"
+                      >
+                          Cancel
+                      </button>
+                      <button
+                          type="submit"
+                          disabled={isApplying}
+                          className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                          {isApplying ? "Submitting..." : "Submit Application"}
+                      </button>
+                  </div>
+              </form>
             </div>
         </div>
       )}

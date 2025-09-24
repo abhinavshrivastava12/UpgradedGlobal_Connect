@@ -1,18 +1,67 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { io } from 'socket.io-client';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import AgoraRTC from 'agora-rtc-sdk-ng';
-import './Chat.css';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Video, Phone, PhoneOff, Send, Users, Wifi, WifiOff, Moon, Sun } from 'lucide-react';
 
-// Agora Configuration
-const APP_ID = import.meta.env.VITE_AGORA_APP_ID || '04d8a9031217470bb3b5c0d6b7a0db55';
-
-// Socket connection - Updated to match your server config
-const socket = io({ 
-  autoConnect: false,
-  transports: ['websocket', 'polling']
-});
+// Mock socket.io implementation for demo
+const mockSocket = {
+  connected: false,
+  id: 'demo-socket-id',
+  
+  connect() {
+    this.connected = true;
+    setTimeout(() => this.emit('connect'), 100);
+  },
+  
+  disconnect() {
+    this.connected = false;
+    this.emit('disconnect');
+  },
+  
+  emit(event, data) {
+    console.log('Socket emit:', event, data);
+    
+    // Simulate responses
+    if (event === 'join') {
+      setTimeout(() => {
+        this.emit('onlineUsers', [
+          { id: '1', email: 'user1@example.com' },
+          { id: '2', email: 'user2@example.com' },
+          { id: '3', email: 'user3@example.com' }
+        ]);
+      }, 500);
+    }
+    
+    if (event === 'sendMessage') {
+      // Echo message back as demo
+      setTimeout(() => {
+        this.emit('message', {
+          from: data.to,
+          user: 'demo@example.com',
+          text: `Demo response to: ${data.text}`,
+          to: data.userId,
+          timestamp: new Date().toISOString()
+        });
+      }, 1000);
+    }
+  },
+  
+  on(event, callback) {
+    this.listeners = this.listeners || {};
+    this.listeners[event] = this.listeners[event] || [];
+    this.listeners[event].push(callback);
+  },
+  
+  off(event, callback) {
+    if (this.listeners && this.listeners[event]) {
+      this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+    }
+  },
+  
+  emit(event, ...args) {
+    if (this.listeners && this.listeners[event]) {
+      this.listeners[event].forEach(callback => callback(...args));
+    }
+  }
+};
 
 function ChatWindow() {
   const [messages, setMessages] = useState([]);
@@ -22,172 +71,102 @@ function ChatWindow() {
   const [typing, setTyping] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
-
-  // Agora states
-  const [agoraClient] = useState(() => AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' }));
-  const [localTracks, setLocalTracks] = useState({ audio: null, video: null });
-  const [remoteUsers, setRemoteUsers] = useState([]);
-  const [callAccepted, setCallAccepted] = useState(false);
+  
+  // Call states
   const [calling, setCalling] = useState(false);
+  const [callAccepted, setCallAccepted] = useState(false);
   const [callType, setCallType] = useState(null);
-
-  const myVideo = useRef(null);
-  const remoteVideo = useRef(null);
-  const typingTimeoutRef = useRef(null);
+  const [darkMode, setDarkMode] = useState(false);
+  
   const messageEndRef = useRef(null);
-  const channelRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+  
+  // Mock user data
+  const token = 'demo-token';
+  const email = 'demo@example.com';
+  const userId = 'demo-user-123';
 
-  const navigate = useNavigate();
-  const token = localStorage.getItem('token');
-  const email = localStorage.getItem('email');
-  const userId = localStorage.getItem('userId');
+  const displayName = useCallback((mail) => 
+    mail ? mail.split('@')[0] : 'User', []);
+  
+  const formatTime = useCallback((ts) => 
+    new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), []);
 
-  const displayName = (mail) => (mail ? mail.split('@')[0] : 'User');
-  const formatTime = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  // Configure axios defaults
-  useEffect(() => {
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      axios.defaults.withCredentials = true;
-    }
-  }, [token]);
-
-  const addNotification = (text) => {
+  const addNotification = useCallback((text) => {
     const id = Date.now() + Math.random();
-    setNotifications((prev) => [...prev, { id, text }]);
+    setNotifications(prev => [...prev, { id, text }]);
     setTimeout(() => {
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      setNotifications(prev => prev.filter(n => n.id !== id));
     }, 4000);
-  };
+  }, []);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, scrollToBottom]);
 
-  const fetchChatHistory = async (otherUserId) => {
+  // Mock API calls
+  const fetchChatHistory = useCallback(async (otherUserId) => {
     try {
-      const response = await axios.get(`/api/chat/history/${otherUserId}`);
-      setMessages(response.data.items || []);
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const mockMessages = [
+        {
+          from: otherUserId,
+          user: `user${otherUserId}@example.com`,
+          text: 'Hello! How are you?',
+          timestamp: new Date(Date.now() - 300000).toISOString()
+        },
+        {
+          from: userId,
+          user: email,
+          text: 'Hi there! I\'m good, thanks!',
+          timestamp: new Date(Date.now() - 120000).toISOString()
+        }
+      ];
+      
+      setMessages(mockMessages);
     } catch (error) {
       console.error("Failed to fetch chat history:", error);
-      if (error.response?.status === 401) {
-        addNotification('Session expired. Please login again.');
-        handleLogout();
-        return;
-      }
+      addNotification('Failed to load chat history');
       setMessages([]);
     }
-  };
+  }, [userId, email, addNotification]);
 
-  // Check call availability using your existing endpoint
-  const checkCallAvailability = async (targetUserId) => {
+  const checkCallAvailability = useCallback(async (targetUserId) => {
     try {
-      const response = await axios.get(`/api/connection/getStatus/${targetUserId}`);
-      
-      if (response.data.success !== undefined) {
-        return response.data;
-      } else {
-        return {
-          success: true,
-          available: true,
-          online: true
-        };
-      }
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return { success: true, available: true, online: true };
     } catch (error) {
       console.error('Call availability check failed:', error);
-      if (error.response?.status === 500) {
-        console.warn('Server error checking availability, proceeding with call');
-        return { success: true, available: true, online: true };
-      }
-      if (error.response?.status === 401) {
-        throw new Error('Please login again');
-      }
       throw new Error('Failed to check user availability');
     }
-  };
+  }, []);
 
-  // Agora Functions
-  const generateChannelName = (user1Id, user2Id) => {
-    const ids = [user1Id, user2Id].sort();
-    return `chat-${ids[0]}-${ids[1]}`;
-  };
-
-  const getAgoraToken = async (channelName) => {
-    try {
-      const response = await axios.post('/api/agora/token', {
-        channelName,
-        userId: userId
-      });
-      
-      if (response.data.warning) {
-        console.warn('No Agora certificate - using null token for testing');
-        return null;
-      }
-      
-      return response.data.token;
-    } catch (error) {
-      console.error('Failed to get Agora token:', error);
-      if (error.response?.status === 401) {
-        throw new Error('Authentication failed. Please login again.');
-      }
-      throw error;
-    }
-  };
-
-  const startAgoraCall = async (isVideo = true) => {
+  // Call functions
+  const startCall = useCallback(async (isVideo = true) => {
     if (!selectedUser?.id) {
       addNotification('Select someone to call first.');
       return;
     }
 
     try {
-      console.log('Starting Agora call:', isVideo ? 'video' : 'audio');
       setCalling(true);
       setCallType(isVideo ? 'video' : 'audio');
 
-      try {
-        const availability = await checkCallAvailability(selectedUser.id);
-        if (!availability.available) {
-          throw new Error(availability.reason || 'User is not available for calls');
-        }
-      } catch (statusError) {
-        console.warn('Could not verify user status, proceeding with call:', statusError.message);
+      const availability = await checkCallAvailability(selectedUser.id);
+      if (!availability.available) {
+        throw new Error('User is not available for calls');
       }
 
-      const channelName = generateChannelName(userId, selectedUser.id);
-      channelRef.current = channelName;
-
-      const agoraToken = await getAgoraToken(channelName);
-
-      await agoraClient.join(APP_ID, channelName, agoraToken, parseInt(userId));
-
-      const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-      let videoTrack = null;
-      
-      if (isVideo) {
-        videoTrack = await AgoraRTC.createCameraVideoTrack();
-      }
-
-      setLocalTracks({ audio: audioTrack, video: videoTrack });
-
-      const tracksToPublish = videoTrack ? [audioTrack, videoTrack] : [audioTrack];
-      await agoraClient.publish(tracksToPublish);
-
-      if (videoTrack && myVideo.current) {
-        videoTrack.play(myVideo.current);
-      }
-
-      setCalling(false);
-      setCallAccepted(true);
-      
-      socket.emit('agoraCallUser', {
+      // Simulate call initiation
+      mockSocket.emit('callUser', {
         to: selectedUser.id,
-        channelName,
         callType: isVideo ? 'video' : 'audio',
         from: userId,
         email
@@ -195,147 +174,39 @@ function ChatWindow() {
 
       addNotification(`Calling ${displayName(selectedUser.email)}...`);
 
+      // Simulate call acceptance after 3 seconds
+      setTimeout(() => {
+        setCallAccepted(true);
+        setCalling(false);
+        addNotification('Call connected');
+      }, 3000);
+
     } catch (error) {
-      console.error('Agora call failed:', error);
+      console.error('Call failed:', error);
       addNotification(error.message || 'Call failed');
       setCalling(false);
-      endAgoraCall();
+      endCall();
     }
-  };
+  }, [selectedUser, userId, email, addNotification, displayName, checkCallAvailability]);
 
-  const answerAgoraCall = async (channelName, isVideo) => {
-    try {
-      console.log('Answering Agora call');
-      setCallAccepted(true);
-      setCallType(isVideo ? 'video' : 'audio');
-      channelRef.current = channelName;
-
-      const agoraToken = await getAgoraToken(channelName);
-
-      await agoraClient.join(APP_ID, channelName, agoraToken, parseInt(userId));
-
-      const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-      let videoTrack = null;
-      
-      if (isVideo) {
-        videoTrack = await AgoraRTC.createCameraVideoTrack();
-      }
-
-      setLocalTracks({ audio: audioTrack, video: videoTrack });
-
-      const tracksToPublish = videoTrack ? [audioTrack, videoTrack] : [audioTrack];
-      await agoraClient.publish(tracksToPublish);
-
-      if (videoTrack && myVideo.current) {
-        videoTrack.play(myVideo.current);
-      }
-
-      addNotification('Call connected');
-    } catch (error) {
-      console.error('Failed to answer call:', error);
-      addNotification('Failed to answer call');
-      endAgoraCall();
+  const endCall = useCallback(() => {
+    setCallAccepted(false);
+    setCalling(false);
+    setCallType(null);
+    
+    if (selectedUser?.id) {
+      mockSocket.emit('endCall', { to: selectedUser.id });
     }
-  };
+    
+    addNotification('Call ended');
+  }, [selectedUser, addNotification]);
 
-  const endAgoraCall = async () => {
-    console.log('Ending Agora call');
-
-    try {
-      if (localTracks.audio) {
-        localTracks.audio.close();
-      }
-      if (localTracks.video) {
-        localTracks.video.close();
-      }
-
-      await agoraClient.leave();
-
-      setLocalTracks({ audio: null, video: null });
-      setRemoteUsers([]);
-      setCallAccepted(false);
-      setCalling(false);
-      setCallType(null);
-      channelRef.current = null;
-
-      if (myVideo.current) {
-        myVideo.current.srcObject = null;
-      }
-      if (remoteVideo.current) {
-        remoteVideo.current.srcObject = null;
-      }
-
-      if (selectedUser?.id) {
-        socket.emit('agoraEndCall', { to: selectedUser.id });
-      }
-
-    } catch (error) {
-      console.error('Error ending call:', error);
-    }
-  };
-
+  // Socket event handlers
   useEffect(() => {
-    const handleUserPublished = async (user, mediaType) => {
-      console.log('User published:', user.uid, mediaType);
-      
-      await agoraClient.subscribe(user, mediaType);
-      
-      if (mediaType === 'video' && remoteVideo.current) {
-        user.videoTrack.play(remoteVideo.current);
-      }
-      if (mediaType === 'audio') {
-        user.audioTrack.play();
-      }
-
-      setRemoteUsers(prev => {
-        const existing = prev.find(u => u.uid === user.uid);
-        if (existing) {
-          return prev.map(u => u.uid === user.uid ? user : u);
-        }
-        return [...prev, user];
-      });
-    };
-
-    const handleUserUnpublished = (user, mediaType) => {
-      console.log('User unpublished:', user.uid, mediaType);
-      
-      if (mediaType === 'video' && remoteVideo.current) {
-        remoteVideo.current.srcObject = null;
-      }
-    };
-
-    const handleUserLeft = (user) => {
-      console.log('User left:', user.uid);
-      setRemoteUsers(prev => prev.filter(u => u.uid !== user.uid));
-      
-      if (remoteVideo.current) {
-        remoteVideo.current.srcObject = null;
-      }
-      
-      addNotification('User left the call');
-    };
-
-    agoraClient.on('user-published', handleUserPublished);
-    agoraClient.on('user-unpublished', handleUserUnpublished);
-    agoraClient.on('user-left', handleUserLeft);
-
-    return () => {
-      agoraClient.off('user-published', handleUserPublished);
-      agoraClient.off('user-unpublished', handleUserUnpublished);
-      agoraClient.off('user-left', handleUserLeft);
-    };
-  }, [agoraClient]);
-
-  useEffect(() => {
-    if (!token || !userId) {
-      navigate('/');
-      return;
-    }
-
     const onConnect = () => {
-      console.log('Socket connected:', socket.id);
+      console.log('Socket connected');
       setConnectionStatus('connected');
-      socket.emit('join', { token, email, userId });
+      mockSocket.emit('join', { token, email, userId });
     };
 
     const onDisconnect = () => {
@@ -343,17 +214,9 @@ function ChatWindow() {
       setConnectionStatus('disconnected');
     };
 
-    const onError = (error) => {
-      console.error('Socket error:', error);
-      if (error.message === 'Authentication failed') {
-        addNotification('Authentication failed. Please login again.');
-        handleLogout();
-      }
-    };
-
     const onMessage = (msg) => {
       const newMsg = { ...msg, timestamp: msg.timestamp || new Date().toISOString() };
-      setMessages((prev) => [...prev, newMsg]);
+      setMessages(prev => [...prev, newMsg]);
       if (msg.from !== userId) {
         addNotification(`${displayName(msg.user)} sent a message`);
       }
@@ -371,96 +234,47 @@ function ChatWindow() {
       }
     };
 
-    const onAgoraCallUser = async ({ channelName, callType: incomingCallType, from, email: callerEmail }) => {
-      console.log('Incoming Agora call:', channelName, incomingCallType);
-      
-      const shouldAnswer = window.confirm(
-        `${displayName(callerEmail)} is calling you (${incomingCallType}). Accept?`
-      );
-      
-      if (shouldAnswer) {
-        await answerAgoraCall(channelName, incomingCallType === 'video');
-        socket.emit('agoraCallAccepted', { to: from });
-      } else {
-        socket.emit('agoraCallDeclined', { to: from });
-      }
-    };
+    // Setup event listeners
+    mockSocket.on('connect', onConnect);
+    mockSocket.on('disconnect', onDisconnect);
+    mockSocket.on('message', onMessage);
+    mockSocket.on('onlineUsers', onOnlineUsers);
+    mockSocket.on('typing', onTyping);
 
-    const onAgoraCallAccepted = () => {
-      console.log('Agora call accepted');
-      addNotification('Call connected');
-    };
-
-    const onAgoraCallDeclined = () => {
-      console.log('Agora call declined');
-      addNotification('Call declined');
-      endAgoraCall();
-    };
-
-    const onAgoraEndCall = () => {
-      console.log('Agora call ended by peer');
-      endAgoraCall();
-      addNotification('Call ended');
-    };
-
-    const onAgoraCallFailed = ({ message }) => {
-      console.log('Agora call failed:', message);
-      addNotification(message || 'Call failed');
-      endAgoraCall();
-    };
-
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    socket.on('error', onError);
-    socket.on('message', onMessage);
-    socket.on('onlineUsers', onOnlineUsers);
-    socket.on('typing', onTyping);
-    socket.on('agoraCallUser', onAgoraCallUser);
-    socket.on('agoraCallAccepted', onAgoraCallAccepted);
-    socket.on('agoraCallDeclined', onAgoraCallDeclined);
-    socket.on('agoraEndCall', onAgoraEndCall);
-    socket.on('agoraCallFailed', onAgoraCallFailed);
-
-    if (!socket.connected) {
-      socket.connect();
+    if (!mockSocket.connected) {
+      mockSocket.connect();
     }
 
     return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('error', onError);
-      socket.off('message', onMessage);
-      socket.off('onlineUsers', onOnlineUsers);
-      socket.off('typing', onTyping);
-      socket.off('agoraCallUser', onAgoraCallUser);
-      socket.off('agoraCallAccepted', onAgoraCallAccepted);
-      socket.off('agoraCallDeclined', onAgoraCallDeclined);
-      socket.off('agoraEndCall', onAgoraEndCall);
-      socket.off('agoraCallFailed', onAgoraCallFailed);
+      mockSocket.off('connect', onConnect);
+      mockSocket.off('disconnect', onDisconnect);
+      mockSocket.off('message', onMessage);
+      mockSocket.off('onlineUsers', onOnlineUsers);
+      mockSocket.off('typing', onTyping);
       
-      endAgoraCall();
-      socket.disconnect();
+      clearTimeout(typingTimeoutRef.current);
+      endCall();
+      mockSocket.disconnect();
     };
-  }, [token, email, navigate, selectedUser, userId, agoraClient]);
+  }, [userId, email, selectedUser, addNotification, displayName, endCall]);
 
   useEffect(() => {
     if (selectedUser) {
       fetchChatHistory(selectedUser.id);
     }
-  }, [selectedUser]);
+  }, [selectedUser, fetchChatHistory]);
 
-  const handleSelectUser = (user) => {
+  const handleSelectUser = useCallback((user) => {
     if (callAccepted || calling) {
-      endAgoraCall();
+      endCall();
     }
     
     setSelectedUser(user);
     setMessages([]);
-    fetchChatHistory(user.id);
     setTyping(false);
-  };
+  }, [callAccepted, calling, endCall]);
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = useCallback((e) => {
     e.preventDefault();
     if (!selectedUser || !message.trim()) return;
 
@@ -472,192 +286,369 @@ function ChatWindow() {
       timestamp: new Date().toISOString(),
     };
 
-    socket.emit('sendMessage', {
+    mockSocket.emit('sendMessage', {
       userId: userId,
       to: selectedUser.id,
       text: message.trim(),
       timestamp: new Date().toISOString(),
     });
 
-    setMessages((prev) => [...prev, msgData]);
+    setMessages(prev => [...prev, msgData]);
     setMessage('');
-  };
+  }, [selectedUser, message, userId, email]);
 
-  const handleTyping = (e) => {
+  const handleTyping = useCallback((e) => {
     setMessage(e.target.value);
     if (selectedUser?.id) {
-      socket.emit('typing', selectedUser.id);
+      mockSocket.emit('typing', selectedUser.id);
     }
-  };
+  }, [selectedUser]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('email');
-    localStorage.removeItem('userId');
-    delete axios.defaults.headers.common['Authorization'];
-    endAgoraCall();
-    navigate('/');
-  };
+  const handleLogout = useCallback(() => {
+    endCall();
+    addNotification('Logout functionality disabled in demo');
+  }, [endCall, addNotification]);
+
+  const toggleDarkMode = useCallback(() => {
+    setDarkMode(prev => !prev);
+  }, []);
 
   return (
-    <div className="chat-container">
-      <aside className="sidebar">
-        <div className="user-list-header">
-          <h3>Online Users ({onlineUsers.length})</h3>
-          <button className="logout-btn" onClick={handleLogout}>Logout</button>
-        </div>
-        
-        <div className="connection-status" style={{ 
-          padding: '5px 10px', 
-          marginBottom: '10px', 
-          borderRadius: '5px',
-          backgroundColor: connectionStatus === 'connected' ? '#4CAF50' : '#f44336',
-          color: 'white',
-          fontSize: '12px'
-        }}>
-          Status: {connectionStatus}
+    <div className={`flex h-screen transition-colors duration-300 ${
+      darkMode ? 'bg-gray-900' : 'bg-gray-100'
+    }`}>
+      {/* Sidebar */}
+      <aside className={`w-80 border-r flex flex-col transition-colors duration-300 ${
+        darkMode 
+          ? 'bg-gray-800 border-gray-700' 
+          : 'bg-white border-gray-300'
+      }`}>
+        <div className={`p-4 border-b transition-colors duration-300 ${
+          darkMode ? 'border-gray-700' : 'border-gray-200'
+        }`}>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className={`font-semibold text-lg flex items-center gap-2 transition-colors duration-300 ${
+              darkMode ? 'text-white' : 'text-gray-900'
+            }`}>
+              <Users className="w-5 h-5" />
+              Online Users ({onlineUsers.length})
+            </h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleDarkMode}
+                className={`p-2 rounded-lg transition-all duration-300 ${
+                  darkMode 
+                    ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+              <button 
+                className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition-colors"
+                onClick={handleLogout}
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+          
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors duration-300 ${
+            connectionStatus === 'connected' 
+              ? darkMode 
+                ? 'bg-green-900 text-green-300' 
+                : 'bg-green-100 text-green-800'
+              : darkMode 
+                ? 'bg-red-900 text-red-300' 
+                : 'bg-red-100 text-red-800'
+          }`}>
+            {connectionStatus === 'connected' ? 
+              <Wifi className="w-4 h-4" /> : 
+              <WifiOff className="w-4 h-4" />
+            }
+            Status: {connectionStatus}
+          </div>
         </div>
 
-        <ul className="user-list">
+        <div className="flex-1 overflow-y-auto">
           {onlineUsers.length === 0 ? (
-            <li style={{ padding: '10px', color: '#aaa', fontSize: '14px' }}>
+            <div className={`p-4 text-center transition-colors duration-300 ${
+              darkMode ? 'text-gray-400' : 'text-gray-500'
+            }`}>
               No online users found
-            </li>
+            </div>
           ) : (
-            onlineUsers.map((user) => (
-              <li
-                key={user.id}
-                className={`user-item ${selectedUser?.id === user.id ? 'selected-user' : ''}`}
-                onClick={() => handleSelectUser(user)}
-                title={user.email}
-              >
-                <span className="online-dot" />
-                <img
-                  src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName(user.email))}&background=45a29e&color=fff&rounded=true&size=34`}
-                  alt={user.email}
-                  className="user-avatar"
-                />
-                <div className="user-info">
-                  <span className="user-name">{displayName(user.email)}</span>
-                  <small className="last-seen">Online</small>
-                </div>
-              </li>
-            ))
+            <ul className="p-2 space-y-1">
+              {onlineUsers.map((user) => (
+                <li
+                  key={user.id}
+                  className={`p-3 rounded-lg cursor-pointer transition-all duration-300 ${
+                    darkMode 
+                      ? 'hover:bg-gray-700' 
+                      : 'hover:bg-gray-50'
+                  } ${
+                    selectedUser?.id === user.id 
+                      ? darkMode 
+                        ? 'bg-blue-900 border border-blue-700' 
+                        : 'bg-blue-100 border border-blue-300'
+                      : ''
+                  }`}
+                  onClick={() => handleSelectUser(user)}
+                  title={user.email}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <img
+                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName(user.email))}&background=${darkMode ? '1f2937' : '3b82f6'}&color=${darkMode ? 'f3f4f6' : 'fff'}&rounded=true&size=40`}
+                        alt={user.email}
+                        className="w-10 h-10 rounded-full"
+                      />
+                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className={`font-medium truncate transition-colors duration-300 ${
+                        darkMode ? 'text-gray-100' : 'text-gray-900'
+                      }`}>
+                        {displayName(user.email)}
+                      </div>
+                      <div className="text-sm text-green-500">Online</div>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
-        </ul>
+        </div>
       </aside>
 
-      <main className="chat-main">
-        {selectedUser && (
-          <header className="chat-header flex-shrink-0">
-            <div className="chat-with">
-              <h1>Chat with {displayName(selectedUser.email)}</h1>
-              <span className="status-pill">
-                {onlineUsers.find(u => u.id === selectedUser.id) ? 'Online' : 'Offline'}
-              </span>
-            </div>
-            <div className="call-controls">
-              <button 
-                className="call-btn" 
-                onClick={() => startAgoraCall(true)}
-                disabled={calling || callAccepted}
-              >
-                Video Call
-              </button>
-              <button 
-                className="call-btn" 
-                onClick={() => startAgoraCall(false)}
-                disabled={calling || callAccepted}
-              >
-                Audio Call
-              </button>
-              {(callAccepted || calling) && (
-                <button className="end-call-btn" onClick={endAgoraCall}>
-                  End Call
-                </button>
+      {/* Main Chat Area */}
+      <main className="flex-1 flex flex-col">
+        {selectedUser ? (
+          <>
+            {/* Chat Header */}
+            <header className={`border-b p-4 transition-colors duration-300 ${
+              darkMode 
+                ? 'bg-gray-800 border-gray-700' 
+                : 'bg-white border-gray-300'
+            }`}>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName(selectedUser.email))}&background=${darkMode ? '374151' : '3b82f6'}&color=${darkMode ? 'f3f4f6' : 'fff'}&rounded=true&size=40`}
+                    alt={selectedUser.email}
+                    className="w-10 h-10 rounded-full"
+                  />
+                  <div>
+                    <h1 className={`font-semibold text-lg transition-colors duration-300 ${
+                      darkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      Chat with {displayName(selectedUser.email)}
+                    </h1>
+                    <span className={`text-sm px-2 py-1 rounded-full transition-colors duration-300 ${
+                      onlineUsers.find(u => u.id === selectedUser.id) 
+                        ? darkMode 
+                          ? 'bg-green-900 text-green-300' 
+                          : 'bg-green-100 text-green-800'
+                        : darkMode 
+                          ? 'bg-gray-700 text-gray-300' 
+                          : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {onlineUsers.find(u => u.id === selectedUser.id) ? 'Online' : 'Offline'}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="flex gap-2">
+                  <button 
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    onClick={() => startCall(true)}
+                    disabled={calling || callAccepted}
+                  >
+                    <Video className="w-4 h-4" />
+                    Video Call
+                  </button>
+                  <button 
+                    className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    onClick={() => startCall(false)}
+                    disabled={calling || callAccepted}
+                  >
+                    <Phone className="w-4 h-4" />
+                    Audio Call
+                  </button>
+                  {(callAccepted || calling) && (
+                    <button 
+                      className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                      onClick={endCall}
+                    >
+                      <PhoneOff className="w-4 h-4" />
+                      End Call
+                    </button>
+                  )}
+                </div>
+              </div>
+            </header>
+
+            {/* Messages Area */}
+            <div className={`flex-1 overflow-y-auto p-4 space-y-4 transition-colors duration-300 ${
+              darkMode ? 'bg-gray-900' : 'bg-gray-50'
+            }`}>
+              {messages.map((msg, i) => {
+                const isMine = msg.from === userId;
+                return (
+                  <div key={i} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg transition-colors duration-300 ${
+                      isMine 
+                        ? darkMode 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-blue-500 text-white'
+                        : darkMode 
+                          ? 'bg-gray-700 border border-gray-600 text-gray-100' 
+                          : 'bg-white border border-gray-300'
+                    }`}>
+                      {!isMine && (
+                        <div className={`font-medium text-sm mb-1 transition-colors duration-300 ${
+                          darkMode ? 'text-gray-300' : 'text-gray-600'
+                        }`}>
+                          {displayName(msg.user)}
+                        </div>
+                      )}
+                      <div className="text-sm">{msg.text}</div>
+                      <div className={`text-xs mt-1 transition-colors duration-300 ${
+                        isMine 
+                          ? darkMode 
+                            ? 'text-blue-200' 
+                            : 'text-blue-100'
+                          : darkMode 
+                            ? 'text-gray-400' 
+                            : 'text-gray-500'
+                      }`}>
+                        {formatTime(msg.timestamp)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {typing && (
+                <div className="flex justify-start">
+                  <div className={`rounded-lg px-4 py-2 max-w-xs transition-colors duration-300 ${
+                    darkMode 
+                      ? 'bg-gray-700 border border-gray-600' 
+                      : 'bg-white border border-gray-300'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <div className={`w-2 h-2 rounded-full animate-bounce ${
+                          darkMode ? 'bg-gray-400' : 'bg-gray-400'
+                        }`}></div>
+                        <div className={`w-2 h-2 rounded-full animate-bounce ${
+                          darkMode ? 'bg-gray-400' : 'bg-gray-400'
+                        }`} style={{ animationDelay: '0.1s' }}></div>
+                        <div className={`w-2 h-2 rounded-full animate-bounce ${
+                          darkMode ? 'bg-gray-400' : 'bg-gray-400'
+                        }`} style={{ animationDelay: '0.2s' }}></div>
+                      </div>
+                      <span className={`text-xs transition-colors duration-300 ${
+                        darkMode ? 'text-gray-300' : 'text-gray-500'
+                      }`}>
+                        {displayName(selectedUser.email)} is typing...
+                      </span>
+                    </div>
+                  </div>
+                </div>
               )}
+              
+              <div ref={messageEndRef} />
             </div>
-          </header>
-        )}
 
-        <div className="chat-messages" id="chat-scroll-area">
-          {messages.map((msg, i) => {
-            const isMine = msg.from === userId;
-            return (
-              <div key={i} className={`message ${isMine ? 'my-message' : 'their-message'}`}>
-                <div className="message-content">
-                  {!isMine && <strong className="sender">{displayName(msg.user)}: </strong>}
-                  <span>{msg.text}</span>
-                  <span className="message-time">{formatTime(msg.timestamp)}</span>
+            {/* Call Status */}
+            {(callAccepted || calling) && (
+              <div className={`p-4 transition-colors duration-300 ${
+                darkMode ? 'bg-gray-800 text-white' : 'bg-gray-800 text-white'
+              }`}>
+                <div className="text-center">
+                  {calling && (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+                      <span>Calling {displayName(selectedUser.email)}...</span>
+                    </div>
+                  )}
+                  {callAccepted && (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span>
+                        {callType === 'video' ? 'Video' : 'Audio'} call active with {displayName(selectedUser.email)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
-            );
-          })}
-          <div ref={messageEndRef} />
-          {typing && selectedUser && (
-            <div className="typing-indicator">
-              {displayName(selectedUser.email)} is typing...
-            </div>
-          )}
-        </div>
+            )}
 
-        {selectedUser && (
-          <form className="message-form flex-shrink-0" onSubmit={handleSendMessage}>
-            <input
-              type="text"
-              placeholder="Type a message..."
-              value={message}
-              onChange={handleTyping}
-              autoComplete="off"
-            />
-            <button type="submit" disabled={!message.trim()} aria-label="Send message">
-              Send
-            </button>
-          </form>
-        )}
-
-        {(callAccepted || calling) && (
-          <div className="video-container">
-            <div className="video-tile">
-              <video 
-                className="my-video" 
-                playsInline 
-                muted 
-                ref={myVideo} 
-                autoPlay 
-                style={{ display: callType === 'audio' ? 'none' : 'block' }}
-              />
-              <div className="video-label">You {callType === 'audio' && '(Audio Only)'}</div>
-            </div>
-            
-            {remoteUsers.length > 0 && (
-              <div className="video-tile">
-                <video 
-                  className="user-video" 
-                  playsInline 
-                  ref={remoteVideo} 
-                  autoPlay 
-                  style={{ display: callType === 'audio' ? 'none' : 'block' }}
+            {/* Message Input */}
+            <div className={`border-t p-4 transition-colors duration-300 ${
+              darkMode 
+                ? 'bg-gray-800 border-gray-700' 
+                : 'bg-white border-gray-300'
+            }`}>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Type a message..."
+                  value={message}
+                  onChange={handleTyping}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage(e)}
+                  className={`flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 ${
+                    darkMode 
+                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                  }`}
+                  autoComplete="off"
                 />
-                <div className="video-label">
-                  {selectedUser ? displayName(selectedUser.email) : 'Partner'} 
-                  {callType === 'audio' && ' (Audio Only)'}
-                </div>
+                <button 
+                  onClick={handleSendMessage}
+                  disabled={!message.trim()} 
+                  className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  <Send className="w-4 h-4" />
+                  Send
+                </button>
               </div>
-            )}
-            
-            {calling && (
-              <div className="call-status">
-                Calling {selectedUser ? displayName(selectedUser.email) : ''}...
-              </div>
-            )}
+            </div>
+          </>
+        ) : (
+          <div className={`flex-1 flex items-center justify-center transition-colors duration-300 ${
+            darkMode ? 'bg-gray-900' : 'bg-gray-50'
+          }`}>
+            <div className={`text-center transition-colors duration-300 ${
+              darkMode ? 'text-gray-400' : 'text-gray-500'
+            }`}>
+              <Users className={`w-12 h-12 mx-auto mb-4 transition-colors duration-300 ${
+                darkMode ? 'text-gray-600' : 'text-gray-400'
+              }`} />
+              <h2 className={`text-xl font-semibold mb-2 transition-colors duration-300 ${
+                darkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>Welcome to Global Connect</h2>
+              <p>Select a user from the sidebar to start chatting</p>
+            </div>
           </div>
         )}
       </main>
 
-      <div className="notification-panel">
-        {notifications.map((n) => (
-          <div key={n.id} className="notification">{n.text}</div>
+      {/* Notifications */}
+      <div className="fixed top-4 right-4 space-y-2 z-50">
+        {notifications.map((notification) => (
+          <div
+            key={notification.id}
+            className={`px-4 py-2 rounded-lg shadow-lg animate-in slide-in-from-right-2 duration-300 transition-colors ${
+              darkMode 
+                ? 'bg-gray-800 text-white border border-gray-700' 
+                : 'bg-gray-900 text-white'
+            }`}
+          >
+            {notification.text}
+          </div>
         ))}
       </div>
     </div>
