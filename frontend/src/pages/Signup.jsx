@@ -17,7 +17,7 @@ import { userDataContext } from '../context/UserContext';
 
 function Signup() {
   const navigate = useNavigate();
-  const { serverUrl } = useContext(authDataContext);
+  // ❌ const { serverUrl } = useContext(authDataContext); // Is line ko hata dein
   const { setUserData } = useContext(userDataContext);
   
   const [step, setStep] = useState(1);
@@ -50,7 +50,8 @@ function Signup() {
     setSuccess("");
 
     try {
-      await axios.post(`${serverUrl}/api/auth/send-signup-otp`, formData, { withCredentials: true });
+      // ✅ Relative path use karein
+      await axios.post(`/api/auth/send-signup-otp`, formData, { withCredentials: true });
       setSuccess("OTP sent to your email!");
       setStep(2);
     } catch (error) {
@@ -87,14 +88,14 @@ function Signup() {
     setSuccess("");
 
     try {
+      // ✅ Relative path use karein
       const result = await axios.post(
-        `${serverUrl}/api/auth/verify-signup-otp`,
+        `/api/auth/verify-signup-otp`,
         { email: formData.email, otp: otpString },
         { withCredentials: true }
       );
       setSuccess(result.data.message);
       
-      // ✅ Corrected: Save data to local storage for persistent authentication
       localStorage.setItem('token', result.data.token);
       localStorage.setItem('userId', result.data.user._id);
       localStorage.setItem('email', result.data.user.email);
@@ -114,8 +115,9 @@ function Signup() {
     setSuccess("");
 
     try {
+      // ✅ Relative path use karein
       await axios.post(
-        `${serverUrl}/api/auth/resend-otp`,
+        `/api/auth/resend-otp`,
         { email: formData.email, type: 'signup' },
         { withCredentials: true }
       );
