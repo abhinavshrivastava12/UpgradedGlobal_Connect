@@ -39,10 +39,9 @@ const __dirname = path.dirname(__filename);
 app.use(express.json()); // Body parser for JSON
 app.use(cookieParser()); // Cookie parser
 
-// **CORS CONFIGURATION (Now only needed for API calls)**
+// CORS CONFIGURATION
 const allowedOrigins = [
-  "http://localhost:5173",
-  "https://upgradedglobal-connect-1.onrender.com", 
+  "http://localhost:5173"
 ];
 
 app.use(
@@ -57,6 +56,11 @@ app.use(
     credentials: true,
   })
 );
+
+// -------------------- Serve Frontend Static Files FIRST --------------------
+// This needs to be at the top to ensure Express serves CSS, JS, etc., with correct MIME types
+app.use(express.static(path.join(__dirname, 'dist'))); // ✅ Corrected position
+
 
 // -------------------- API ROUTES --------------------
 app.use("/api/auth", authRouter);
@@ -81,7 +85,6 @@ export const io = new Server(server, {
 export const userSocketMap = new Map(); // userId -> socketId
 const activeUsers = {}; // socketId -> { userId, email, lastSeen }
 
-// Helper function to send the list of online users to all clients
 const sendOnlineUsers = () => {
   const users = Object.values(activeUsers).map((u) => ({
     id: u.userId,
@@ -91,12 +94,10 @@ const sendOnlineUsers = () => {
   io.emit("onlineUsers", users);
 };
 
-// Helper function to find a socket ID by user ID
 const findSocketByUserId = (userId) => {
   return userSocketMap.get(userId);
 };
 
-// -------------------- SOCKET.IO LOGIC --------------------
 io.on("connection", (socket) => {
   console.log("⚡ New socket connected:", socket.id);
 
@@ -271,9 +272,8 @@ io.on("connection", (socket) => {
   });
 });
 
-// -------------------- Serve Frontend Static Files --------------------
-// This needs to be after all API routes so they are not intercepted.
-app.use(express.static(path.join(__dirname, 'dist'))); // 👈 Replace 'dist' with your frontend build folder name
+// -------------------- Serve Frontend HTML (Catch-all) --------------------
+// This needs to be placed AFTER all API routes and static middleware.
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
