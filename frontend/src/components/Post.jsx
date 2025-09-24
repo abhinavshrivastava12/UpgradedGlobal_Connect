@@ -14,7 +14,7 @@ import { io } from "socket.io-client";
 import ConnectionButton from './ConnectionButton';
 
 // Socket setup
-const socket = io("https://upgradedglobal-connect.onrender.com");
+const socket = io();
 
 // Error Boundary
 class PostErrorBoundary extends React.Component {

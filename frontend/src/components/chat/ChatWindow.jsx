@@ -9,7 +9,7 @@ import './Chat.css';
 const APP_ID = import.meta.env.VITE_AGORA_APP_ID || '04d8a9031217470bb3b5c0d6b7a0db55';
 
 // Socket connection - Updated to match your server config
-const socket = io('https://upgradedglobal-connect.onrender.com', { 
+const socket = io({ 
   autoConnect: false,
   transports: ['websocket', 'polling']
 });
@@ -71,7 +71,7 @@ function ChatWindow() {
 
   const fetchChatHistory = async (otherUserId) => {
     try {
-      const response = await axios.get(`https://upgradedglobal-connect.onrender.com/api/chat/history/${otherUserId}`);
+      const response = await axios.get(`/api/chat/history/${otherUserId}`);
       setMessages(response.data.items || []);
     } catch (error) {
       console.error("Failed to fetch chat history:", error);
@@ -87,7 +87,7 @@ function ChatWindow() {
   // Check call availability using your existing endpoint
   const checkCallAvailability = async (targetUserId) => {
     try {
-      const response = await axios.get(`https://upgradedglobal-connect.onrender.com/api/connection/getStatus/${targetUserId}`);
+      const response = await axios.get(`/api/connection/getStatus/${targetUserId}`);
       
       if (response.data.success !== undefined) {
         return response.data;
@@ -119,7 +119,7 @@ function ChatWindow() {
 
   const getAgoraToken = async (channelName) => {
     try {
-      const response = await axios.post('https://upgradedglobal-connect.onrender.com/api/agora/token', {
+      const response = await axios.post('/api/agora/token', {
         channelName,
         userId: userId
       });

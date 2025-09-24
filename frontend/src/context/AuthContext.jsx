@@ -1,7 +1,7 @@
 import React, { createContext } from 'react'
 export const authDataContext=createContext()
 function AuthContext({children}) {
-const serverUrl="https://upgradedglobal-connect.onrender.com"
+const serverUrl=import.meta.env.VITE_SERVER_URL;
     let value={
         serverUrl
     }

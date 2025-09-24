@@ -7,7 +7,7 @@ import { IoIosCheckmarkCircleOutline } from "react-icons/io";
 import { RxCrossCircled } from "react-icons/rx";
 import io from "socket.io-client";
 
-const socket = io("https://upgradedglobal-connect.onrender.com");
+const socket = io();
 
 function Network() {
   let { serverUrl } = useContext(authDataContext);
