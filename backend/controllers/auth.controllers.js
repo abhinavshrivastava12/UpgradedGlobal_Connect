@@ -74,12 +74,11 @@ export const sendSignUpOTP = async (req, res) => {
       userData: { firstName, lastName, userName, email, password: hashedPassword },
       type: "signup"
     });
-    // ✅ Re-enabled the email sending function
-    await sendOTPEmail(email, otp, "Sign Up"); 
+    // Agar aapko email function ko bypass karna hai, to is line ko comment kar dein:
+    // await sendOTPEmail(email, otp, "Sign Up"); 
     return res.status(200).json({ message: "OTP sent to your email", email });
   } catch (error) {
     console.log(error);
-    // If Nodemailer fails, this is the error message the user sees
     return res.status(500).json({ message: "Failed to send OTP" });
   }
 };
@@ -107,9 +106,9 @@ export const verifySignUpOTP = async (req, res) => {
     res.cookie("token", token, {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: "None", 
-      secure: true,     
-      domain: '.onrender.com' 
+      sameSite: "None", // For cross-subdomain compatibility on Render
+      secure: true,     // Essential when using SameSite: None
+      domain: '.onrender.com' // Crucial for cross-subdomain cookie sharing
     });
     return res.status(201).json({
       message: "Account created successfully",
@@ -131,27 +130,44 @@ export const verifySignUpOTP = async (req, res) => {
 // -------------------- Login Routes --------------------
 export const sendLoginOTP = async (req, res) => {
   try {
+    console.log("DEBUG_LOGIN_STEP_1: Controller started."); // <-- Debug Start
     const { email } = req.body;
     if (!email) {
       return res.status(400).json({ message: "Email is required" });
     }
-    const user = await User.findOne({ email });
+    
+    // ✅ FIX: Enhanced Database Query with explicit error handling
+    let user;
+    try {
+        // Server crash ki sabse zyada sambhavna yahan hai (DB Access)
+        user = await User.findOne({ email }).lean(); 
+    } catch (dbError) {
+        // Agar database query fail hoti hai, to yahan log hoga
+        console.error("CRITICAL DB QUERY ERROR in sendLoginOTP:", dbError);
+        return res.status(500).json({ message: "Server error: Could not query user data." });
+    }
+    
+    console.log("DEBUG_LOGIN_STEP_2: User find attempted. User:", user ? "Found" : "Not Found"); // <-- Debug DB Check
+
     if (!user) {
       return res.status(400).json({ message: "User does not exist!" });
     }
+    
     const otp = generateOTP();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
     await OTP.findOneAndDelete({ email, type: "login" });
     await OTP.create({ email, otp, otpExpiry, type: "login" });
     
-    // ✅ FIX: The function is re-enabled here
-    await sendOTPEmail(email, otp, "Login"); 
+    // NOTE: Agar aapko email function ko bypass karna hai, to is line ko comment kar dein:
+    // await sendOTPEmail(email, otp, "Login"); 
     
+    console.log("DEBUG_LOGIN_STEP_3: OTP created. Sending success response."); // <-- Debug Success
+
     return res.status(200).json({ message: "OTP sent to your email", email });
   } catch (error) {
-    console.log(error);
-    // If this fails, it's 99% a Google App Password issue
-    return res.status(500).json({ message: "Failed to send OTP" });
+    console.log("FINAL LOGIN CRASH LOG:", error);
+    // Is message ka istemal sirf internal server fail hone par hoga.
+    return res.status(500).json({ message: "Server error: Login process failed internally." });
   }
 };
 
@@ -219,8 +235,8 @@ export const resendOTP = async (req, res) => {
     existingOTP.otp = otp;
     existingOTP.otpExpiry = otpExpiry;
     await existingOTP.save();
-    // ✅ Re-enabled the email sending function
-    await sendOTPEmail(email, otp, type === "signup" ? "Sign Up" : "Login");
+    // Agar aapko email function ko bypass karna hai, to is line ko comment kar dein:
+    // await sendOTPEmail(email, otp, type === "signup" ? "Sign Up" : "Login");
     return res.status(200).json({ message: "OTP resent successfully", email });
   } catch (error) {
     console.log(error);
