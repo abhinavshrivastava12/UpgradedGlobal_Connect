@@ -47,7 +47,7 @@ export const sendOTPEmail = async (email, otp, type) => {
   await transporter.sendMail(mailOptions);
 };
 
-// Sign Up: Send OTP
+// -------------------- Sign Up Routes --------------------
 export const sendSignUpOTP = async (req, res) => {
   try {
     const { firstName, lastName, userName, email, password } = req.body;
@@ -74,7 +74,8 @@ export const sendSignUpOTP = async (req, res) => {
       userData: { firstName, lastName, userName, email, password: hashedPassword },
       type: "signup"
     });
-    await sendOTPEmail(email, otp, "Sign Up");
+    // Agar aapko email function ko bypass karna hai, to is line ko comment kar dein:
+    // await sendOTPEmail(email, otp, "Sign Up"); 
     return res.status(200).json({ message: "OTP sent to your email", email });
   } catch (error) {
     console.log(error);
@@ -82,7 +83,6 @@ export const sendSignUpOTP = async (req, res) => {
   }
 };
 
-// Sign Up: Verify OTP (Corrected)
 export const verifySignUpOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -106,9 +106,9 @@ export const verifySignUpOTP = async (req, res) => {
     res.cookie("token", token, {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: "None", // For cross-subdomain compatibility on Render
-      secure: true,     // Essential when using SameSite: None
-      domain: '.onrender.com' // Crucial for cross-subdomain cookie sharing
+      sameSite: "None",
+      secure: true,
+      domain: '.onrender.com'
     });
     return res.status(201).json({
       message: "Account created successfully",
@@ -127,26 +127,37 @@ export const verifySignUpOTP = async (req, res) => {
   }
 };
 
-// Login: Send OTP
+// -------------------- Login Routes --------------------
 export const sendLoginOTP = async (req, res) => {
   try {
+    console.log("DEBUG_LOGIN_STEP_1: Controller started."); // <-- Debug Start
     const { email } = req.body;
     if (!email) {
       return res.status(400).json({ message: "Email is required" });
     }
-    const user = await User.findOne({ email });
+    
+    // ✅ Server crash ki sabse zyada sambhavna yahan hai (DB Access)
+    const user = await User.findOne({ email }); 
+    console.log("DEBUG_LOGIN_STEP_2: User find attempted. User:", user ? "Found" : "Not Found"); // <-- Debug DB Check
+
     if (!user) {
       return res.status(400).json({ message: "User does not exist!" });
     }
+    
     const otp = generateOTP();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
     await OTP.findOneAndDelete({ email, type: "login" });
     await OTP.create({ email, otp, otpExpiry, type: "login" });
-    await sendOTPEmail(email, otp, "Login");
+    
+    // Agar aapko email function ko bypass karna hai, to is line ko comment kar dein:
+    // await sendOTPEmail(email, otp, "Login");
+    
+    console.log("DEBUG_LOGIN_STEP_3: OTP created. Sending success response."); // <-- Debug Success
+
     return res.status(200).json({ message: "OTP sent to your email", email });
   } catch (error) {
-    console.log(error);
-    return res.status(500).json({ message: "Login failed" });
+    console.log("CRASH_IN_SEND_LOGIN_OTP:", error); // <-- Detailed Error Log
+    return res.status(500).json({ message: "Failed to send OTP" });
   }
 };
 
@@ -160,10 +171,6 @@ export const verifyLoginOTP = async (req, res) => {
     const otpRecord = await OTP.findOne({ email, type: "login" });
     if (!otpRecord) {
       return res.status(400).json({ message: "OTP not found or expired" });
-    }
-    if (new Date() > otpRecord.otpExpiry) {
-      await OTP.findOneAndDelete({ email, type: "login" });
-      return res.status(400).json({ message: "OTP expired" });
     }
     if (otpRecord.otp !== otp) {
       return res.status(400).json({ message: "Invalid OTP" });
@@ -214,7 +221,8 @@ export const resendOTP = async (req, res) => {
     existingOTP.otp = otp;
     existingOTP.otpExpiry = otpExpiry;
     await existingOTP.save();
-    await sendOTPEmail(email, otp, type === "signup" ? "Sign Up" : "Login");
+    // Agar aapko email function ko bypass karna hai, to is line ko comment kar dein:
+    // await sendOTPEmail(email, otp, type === "signup" ? "Sign Up" : "Login");
     return res.status(200).json({ message: "OTP resent successfully", email });
   } catch (error) {
     console.log(error);

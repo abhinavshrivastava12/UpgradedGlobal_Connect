@@ -1,19 +1,18 @@
-// vite.config.js
+// vite.config.js (Final Version for Deployment)
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { NodeGlobalsPolyfillPlugin } from "@esbuild-plugins/node-globals-polyfill";
-import { NodeModulesPolyfillPlugin } from "@esbuild-plugins/node-modules-polyfill";
-import path from "path";
+// ... (other imports) ...
 
 export default defineConfig({
   plugins: [react()],
-  // ... other configs
+  // ... other configs ...
   build: {
-    sourcemap: true, // 👈 Add this line to enable source maps
+    sourcemap: true, // Accha hai
   },
-  server: {
-    proxy: {
-      '/api': 'http://localhost:8000'
-    }
-  }
+  // ❌ REMOVED: Deployment ke liye yeh server block hata dein
+  // server: { 
+  //   proxy: { 
+  //     '/api': 'http://localhost:8000' 
+  //   } 
+  // }
 });
