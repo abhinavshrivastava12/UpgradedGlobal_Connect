@@ -106,9 +106,9 @@ export const verifySignUpOTP = async (req, res) => {
     res.cookie("token", token, {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: "None",
-      secure: true,
-      domain: '.onrender.com'
+      sameSite: "None", // For cross-subdomain compatibility on Render
+      secure: true,     // Essential when using SameSite: None
+      domain: '.onrender.com' // Crucial for cross-subdomain cookie sharing
     });
     return res.status(201).json({
       message: "Account created successfully",
@@ -130,23 +130,23 @@ export const verifySignUpOTP = async (req, res) => {
 // Login: Send OTP
 export const sendLoginOTP = async (req, res) => {
   try {
-    // const { email } = req.body;
-    // if (!email) {
-    //   return res.status(400).json({ message: "Email is required" });
-    // }
-    // const user = await User.findOne({ email });
-    // if (!user) {
-    //   return res.status(400).json({ message: "User does not exist!" });
-    // }
-    // const otp = generateOTP();
-    // const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-    // await OTP.findOneAndDelete({ email, type: "login" });
-    // await OTP.create({ email, otp, otpExpiry, type: "login" });
-    // await sendOTPEmail(email, otp, "Login");
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: "User does not exist!" });
+    }
+    const otp = generateOTP();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+    await OTP.findOneAndDelete({ email, type: "login" });
+    await OTP.create({ email, otp, otpExpiry, type: "login" });
+    await sendOTPEmail(email, otp, "Login");
     return res.status(200).json({ message: "OTP sent to your email", email });
   } catch (error) {
     console.log(error);
-    return res.status(500).json({ message: "Failed to send OTP" });
+    return res.status(500).json({ message: "Login failed" });
   }
 };
 

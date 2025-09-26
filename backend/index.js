@@ -40,25 +40,19 @@ app.use(express.json()); // Body parser for JSON
 app.use(cookieParser()); // Cookie parser
 
 // -------------------- Serve Frontend Static Files FIRST --------------------
-// ✅ Ab yeh bilkul sahi jagah par hai
+// ✅ FIX: This must be before all other routing logic (API and catch-all)
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// CORS CONFIGURATION
+// CORS CONFIGURATION (Only for API routes to handle credentials)
 const allowedOrigins = [
   "http://localhost:5173",
 ];
 
 // -------------------- API ROUTES --------------------
-// ✅ CORS ko sirf API routes par lagana hai
+// ✅ FIX: Simplified CORS for same-origin deployment
 app.use("/api", cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
+  origin: true, // Allow same-origin requests
+  credentials: true, // Essential for cookies/auth to work
 }));
 
 // API Router imports
@@ -272,7 +266,7 @@ io.on("connection", (socket) => {
 });
 
 // -------------------- Catch-all Route for Frontend HTML --------------------
-// ✅ Sabse ant mein: Agar koi aur route match nahi hota, to yeh chalega.
+// ✅ This must be the last route.
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
