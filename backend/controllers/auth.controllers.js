@@ -74,11 +74,12 @@ export const sendSignUpOTP = async (req, res) => {
       userData: { firstName, lastName, userName, email, password: hashedPassword },
       type: "signup"
     });
-    // Agar aapko email function ko bypass karna hai, to is line ko comment kar dein:
-    // await sendOTPEmail(email, otp, "Sign Up"); 
+    // ✅ Re-enabled the email sending function
+    await sendOTPEmail(email, otp, "Sign Up"); 
     return res.status(200).json({ message: "OTP sent to your email", email });
   } catch (error) {
     console.log(error);
+    // If Nodemailer fails, this is the error message the user sees
     return res.status(500).json({ message: "Failed to send OTP" });
   }
 };
@@ -106,9 +107,9 @@ export const verifySignUpOTP = async (req, res) => {
     res.cookie("token", token, {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: "None",
-      secure: true,
-      domain: '.onrender.com'
+      sameSite: "None", 
+      secure: true,     
+      domain: '.onrender.com' 
     });
     return res.status(201).json({
       message: "Account created successfully",
@@ -130,33 +131,26 @@ export const verifySignUpOTP = async (req, res) => {
 // -------------------- Login Routes --------------------
 export const sendLoginOTP = async (req, res) => {
   try {
-    console.log("DEBUG_LOGIN_STEP_1: Controller started."); // <-- Debug Start
     const { email } = req.body;
     if (!email) {
       return res.status(400).json({ message: "Email is required" });
     }
-    
-    // ✅ Server crash ki sabse zyada sambhavna yahan hai (DB Access)
-    const user = await User.findOne({ email }); 
-    console.log("DEBUG_LOGIN_STEP_2: User find attempted. User:", user ? "Found" : "Not Found"); // <-- Debug DB Check
-
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: "User does not exist!" });
     }
-    
     const otp = generateOTP();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
     await OTP.findOneAndDelete({ email, type: "login" });
     await OTP.create({ email, otp, otpExpiry, type: "login" });
     
-    // Agar aapko email function ko bypass karna hai, to is line ko comment kar dein:
-    // await sendOTPEmail(email, otp, "Login");
+    // ✅ FIX: The function is re-enabled here
+    await sendOTPEmail(email, otp, "Login"); 
     
-    console.log("DEBUG_LOGIN_STEP_3: OTP created. Sending success response."); // <-- Debug Success
-
     return res.status(200).json({ message: "OTP sent to your email", email });
   } catch (error) {
-    console.log("CRASH_IN_SEND_LOGIN_OTP:", error); // <-- Detailed Error Log
+    console.log(error);
+    // If this fails, it's 99% a Google App Password issue
     return res.status(500).json({ message: "Failed to send OTP" });
   }
 };
@@ -171,6 +165,10 @@ export const verifyLoginOTP = async (req, res) => {
     const otpRecord = await OTP.findOne({ email, type: "login" });
     if (!otpRecord) {
       return res.status(400).json({ message: "OTP not found or expired" });
+    }
+    if (new Date() > otpRecord.otpExpiry) {
+      await OTP.findOneAndDelete({ email, type: "login" });
+      return res.status(400).json({ message: "OTP expired" });
     }
     if (otpRecord.otp !== otp) {
       return res.status(400).json({ message: "Invalid OTP" });
@@ -221,8 +219,8 @@ export const resendOTP = async (req, res) => {
     existingOTP.otp = otp;
     existingOTP.otpExpiry = otpExpiry;
     await existingOTP.save();
-    // Agar aapko email function ko bypass karna hai, to is line ko comment kar dein:
-    // await sendOTPEmail(email, otp, type === "signup" ? "Sign Up" : "Login");
+    // ✅ Re-enabled the email sending function
+    await sendOTPEmail(email, otp, type === "signup" ? "Sign Up" : "Login");
     return res.status(200).json({ message: "OTP resent successfully", email });
   } catch (error) {
     console.log(error);
