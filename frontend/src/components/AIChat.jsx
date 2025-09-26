@@ -17,7 +17,6 @@ function AIChat() {
 
   useEffect(() => {
     scrollToBottom();
-    console.log("DEBUG messages state:", messages); // ✅ Debug messages on each render
   }, [messages, isTyping]);
 
   const sendMessage = async () => {
@@ -26,7 +25,7 @@ function AIChat() {
     const userMessage = { from: "user", text: input.trim(), id: Date.now() };
     const currentInput = input.trim();
 
-    // ✅ Defensive update
+    // ✅ Defensive update: Ensure 'prev' is an array before updating
     setMessages((prev) =>
       Array.isArray(prev) ? [...prev, userMessage] : [userMessage]
     );
@@ -45,15 +44,13 @@ function AIChat() {
       });
 
       const data = await res.json();
-      console.log("DEBUG API response:", data); // ✅ Debug API response
-
       const aiText = data?.reply || "Sorry, I couldn't respond.";
       setIsTyping(false);
 
       const words = aiText.split(" ");
       let displayText = "";
 
-      // ✅ Add empty AI response
+      // ✅ Add empty AI response with a unique ID right away
       setMessages((prev) =>
         Array.isArray(prev)
           ? [...prev, { from: "ai", text: "", id: Date.now() }]
@@ -64,6 +61,7 @@ function AIChat() {
         displayText += (i > 0 ? " " : "") + words[i];
 
         setMessages((prev) => {
+          // ✅ Defensive check: ensure 'prev' is an array
           if (!Array.isArray(prev)) return [{ from: "ai", text: displayText, id: Date.now() }];
           const newMessages = [...prev];
           const lastMessageIndex = newMessages.length - 1;
@@ -80,25 +78,14 @@ function AIChat() {
         await new Promise((resolve) => setTimeout(resolve, 80));
       }
     } catch (error) {
-      console.error("❌ Error sending message:", error);
+      console.error("Error sending message:", error);
       setIsTyping(false);
+      
+      // ✅ Defensive update on error as well
       setMessages((prev) =>
         Array.isArray(prev)
-          ? [
-              ...prev,
-              {
-                from: "ai",
-                text: "Sorry, I couldn't respond. Please try again.",
-                id: Date.now(),
-              },
-            ]
-          : [
-              {
-                from: "ai",
-                text: "Sorry, I couldn't respond. Please try again.",
-                id: Date.now(),
-              },
-            ]
+          ? [...prev, { from: "ai", text: "Sorry, I couldn't respond. Please try again.", id: Date.now() }]
+          : [{ from: "ai", text: "Sorry, I couldn't respond. Please try again.", id: Date.now() }]
       );
     } finally {
       setLoading(false);
