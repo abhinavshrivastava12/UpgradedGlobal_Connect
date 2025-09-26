@@ -12,7 +12,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import axios from 'axios';
-import { authDataContext } from '../context/AuthContext';
+// import { authDataContext } from '../context/AuthContext'; // ❌ Ise hata dein
 import { userDataContext } from '../context/UserContext';
 
 function Signup() {
@@ -50,7 +50,7 @@ function Signup() {
     setSuccess("");
 
     try {
-      // ✅ Relative path use karein
+      // ✅ RELATIVE PATH
       await axios.post(`/api/auth/send-signup-otp`, formData, { withCredentials: true });
       setSuccess("OTP sent to your email!");
       setStep(2);
@@ -88,7 +88,7 @@ function Signup() {
     setSuccess("");
 
     try {
-      // ✅ Relative path use karein
+      // ✅ RELATIVE PATH
       const result = await axios.post(
         `/api/auth/verify-signup-otp`,
         { email: formData.email, otp: otpString },
@@ -115,7 +115,7 @@ function Signup() {
     setSuccess("");
 
     try {
-      // ✅ Relative path use karein
+      // ✅ RELATIVE PATH
       await axios.post(
         `/api/auth/resend-otp`,
         { email: formData.email, type: 'signup' },

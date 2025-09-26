@@ -10,12 +10,13 @@ import {
   Shield
 } from 'lucide-react';
 import axios from 'axios';
-import { authDataContext } from '../context/AuthContext';
+// ✅ REMOVED: Do not import authDataContext here to prevent serverUrl issues
+// import { authDataContext } from '../context/AuthContext'; 
 import { userDataContext } from '../context/UserContext';
 
 function Login() {
   const navigate = useNavigate();
-  // ❌ const { serverUrl } = useContext(authDataContext); // Is line ko hata dein
+  // ❌ REMOVED: const { serverUrl } = useContext(authDataContext); 
   const { setUserData } = useContext(userDataContext);
   
   const [step, setStep] = useState(1);
@@ -38,7 +39,7 @@ function Login() {
     setSuccess("");
 
     try {
-      // ✅ Relative path use karein
+      // ✅ RELATIVE PATH
       await axios.post(`/api/auth/send-login-otp`, { email }, { withCredentials: true });
       setSuccess("OTP sent to your email!");
       setStep(2);
@@ -75,7 +76,7 @@ function Login() {
     setSuccess("");
 
     try {
-      // ✅ Relative path use karein
+      // ✅ RELATIVE PATH
       const result = await axios.post(
         `/api/auth/verify-login-otp`,
         { email, otp: otpString },
@@ -102,7 +103,7 @@ function Login() {
     setSuccess("");
 
     try {
-      // ✅ Relative path use karein
+      // ✅ RELATIVE PATH
       await axios.post(
         `/api/auth/resend-otp`,
         { email, type: 'login' },
