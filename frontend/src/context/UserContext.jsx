@@ -8,7 +8,7 @@ export const userDataContext = createContext();
 function UserContext({ children }) {
   const [userData, setUserData] = useState(null);
   const [edit, setEdit] = useState(false);
-  const [postData, setPostData] = useState([]);     // ✅ ALWAYS array
+  const [postData, setPostData] = useState([]); 
   const [profileData, setProfileData] = useState(null);
 
   const { serverUrl } = useContext(authDataContext);
@@ -36,11 +36,12 @@ function UserContext({ children }) {
         { withCredentials: true }
       );
 
-      // ✅ FIX: Set only posts array
-      setPostData(result.data.posts || []);
+      // ✅ FIX: Backend sends direct array, not an object with 'posts' key
+      setPostData(result.data || []); 
 
     } catch (error) {
       console.error("Fetch posts error:", error);
+      setPostData([]);
     }
   };
 
