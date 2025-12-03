@@ -5,6 +5,7 @@ import { Video, Phone, PhoneOff, Send, Users, Wifi, WifiOff, Moon, Sun } from 'l
 const mockSocket = {
   connected: false,
   id: 'demo-socket-id',
+  listeners: {}, // Initialize listeners here
   
   connect() {
     this.connected = true;
@@ -16,10 +17,11 @@ const mockSocket = {
     this.emit('disconnect');
   },
   
+  // MERGED EMIT FUNCTION
   emit(event, data) {
     console.log('Socket emit:', event, data);
     
-    // Simulate responses
+    // --- 1. Simulation Logic ---
     if (event === 'join') {
       setTimeout(() => {
         this.emit('onlineUsers', [
@@ -42,10 +44,14 @@ const mockSocket = {
         });
       }, 1000);
     }
+
+    // --- 2. Listener Call Logic ---
+    if (this.listeners && this.listeners[event]) {
+      this.listeners[event].forEach(callback => callback(data));
+    }
   },
   
   on(event, callback) {
-    this.listeners = this.listeners || {};
     this.listeners[event] = this.listeners[event] || [];
     this.listeners[event].push(callback);
   },
@@ -53,12 +59,6 @@ const mockSocket = {
   off(event, callback) {
     if (this.listeners && this.listeners[event]) {
       this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
-    }
-  },
-  
-  emit(event, ...args) {
-    if (this.listeners && this.listeners[event]) {
-      this.listeners[event].forEach(callback => callback(...args));
     }
   }
 };
@@ -119,13 +119,15 @@ function ChatWindow() {
           from: otherUserId,
           user: `user${otherUserId}@example.com`,
           text: 'Hello! How are you?',
-          timestamp: new Date(Date.now() - 300000).toISOString()
+          timestamp: new Date(Date.now() - 300000).toISOString(),
+          id: Date.now() + 1 // Add unique ID
         },
         {
           from: userId,
           user: email,
           text: 'Hi there! I\'m good, thanks!',
-          timestamp: new Date(Date.now() - 120000).toISOString()
+          timestamp: new Date(Date.now() - 120000).toISOString(),
+          id: Date.now() + 2 // Add unique ID
         }
       ];
       
@@ -215,7 +217,8 @@ function ChatWindow() {
     };
 
     const onMessage = (msg) => {
-      const newMsg = { ...msg, timestamp: msg.timestamp || new Date().toISOString() };
+      // ✅ FIX: Ensure every message has a unique ID, falling back to a new timestamp if none is provided.
+      const newMsg = { ...msg, timestamp: msg.timestamp || new Date().toISOString(), id: msg.id || Date.now() + Math.random() }; 
       setMessages(prev => [...prev, newMsg]);
       if (msg.from !== userId) {
         addNotification(`${displayName(msg.user)} sent a message`);
@@ -284,6 +287,7 @@ function ChatWindow() {
       text: message.trim(),
       to: selectedUser.id,
       timestamp: new Date().toISOString(),
+      id: Date.now() // ✅ FIX: Add unique ID for the outgoing message
     };
 
     mockSocket.emit('sendMessage', {
@@ -496,7 +500,7 @@ function ChatWindow() {
               {messages.map((msg, i) => {
                 const isMine = msg.from === userId;
                 return (
-                  <div key={i} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                  <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg transition-colors duration-300 ${
                       isMine 
                         ? darkMode 

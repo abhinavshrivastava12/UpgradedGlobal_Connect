@@ -14,9 +14,11 @@ function Notification() {
   const handleGetNotification = async () => {
     try {
       let result = await axios.get(serverUrl + "/api/notification/get", { withCredentials: true });
-      setNotificationData(result.data);
+      // ✅ Expecting { notifications: [...] } from backend
+      setNotificationData(result.data.notifications || []);
     } catch (error) {
-      console.log(error);
+      console.log("Error fetching notifications:", error);
+      setNotificationData([]); // fallback to empty array
     }
   };
 
@@ -25,7 +27,7 @@ function Notification() {
       await axios.delete(serverUrl + `/api/notification/deleteone/${id}`, { withCredentials: true });
       await handleGetNotification();
     } catch (error) {
-      console.log(error);
+      console.log("Error deleting notification:", error);
     }
   };
 
@@ -34,7 +36,7 @@ function Notification() {
       await axios.delete(serverUrl + "/api/notification", { withCredentials: true });
       await handleGetNotification();
     } catch (error) {
-      console.log(error);
+      console.log("Error clearing notifications:", error);
     }
   };
 
@@ -78,7 +80,7 @@ function Notification() {
       </div>
 
       {/* Notification List */}
-      {notificationData.length > 0 ? (
+      {Array.isArray(notificationData) && notificationData.length > 0 ? (
         <div className="w-full max-w-[900px] bg-white shadow-lg rounded-lg flex flex-col divide-y divide-gray-200 mt-4">
           {notificationData.map((noti, index) => (
             <div
