@@ -24,6 +24,7 @@ function Profile() {
     }
   }, [profileData, postData]);
 
+  // Socket logic same as before...
   useEffect(() => {
     socket.on("likeUpdated", ({ postId, likes }) => {
       setProfilePosts((prev) =>
@@ -51,6 +52,7 @@ function Profile() {
   const connectionsCount = profileData?.connection?.length ?? 0;
 
   return (
+    // FIX 1: Padding top 100px for Navbar overlap
     <div className="min-h-screen bg-gradient-to-br from-[#1A1A71] to-[#2C2C3C] text-white flex flex-col items-center pt-[100px] pb-10">
       <Nav />
       {edit && <EditProfile />}
@@ -60,9 +62,10 @@ function Profile() {
         <section className="flex-1 space-y-6">
 
           {/* PROFILE CARD */}
-          <div className="bg-white text-black rounded-xl shadow p-6 relative">
+          <div className="bg-white text-black rounded-xl shadow relative">
+            
             {/* Cover Image */}
-            <div className="h-36 rounded-t-xl overflow-hidden bg-gray-200">
+            <div className="h-36 rounded-t-xl overflow-hidden bg-gray-200 w-full">
               {profileData?.coverImage ? (
                 <img src={profileData.coverImage} alt="Cover" className="w-full h-full object-cover" />
               ) : (
@@ -70,36 +73,37 @@ function Profile() {
               )}
             </div>
 
-            {/* Profile Info Container */}
-            {/* FIX 1: Changed 'items-center' to 'items-end' to align text to bottom of image */}
-            <div className="relative -top-16 flex flex-col sm:flex-row items-start sm:items-end space-y-4 sm:space-y-0 sm:space-x-6 px-4 sm:px-0">
-              
-              {/* Profile Image */}
-              <div
-                className="h-32 w-32 rounded-full border-4 border-white overflow-hidden cursor-pointer bg-white flex-shrink-0 relative z-10"
-                onClick={() => setEdit(true)}
-              >
-                <img src={profileData?.profileImage || dp} alt="Profile" className="h-full w-full object-cover" />
-              </div>
+            {/* Profile Header Content */}
+            <div className="px-6 pb-6">
+              <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4 -mt-12 sm:-mt-16">
+                
+                {/* Profile Image - Only this moves up */}
+                <div 
+                  className="w-32 h-32 rounded-full border-4 border-white overflow-hidden cursor-pointer bg-white relative z-10 flex-shrink-0 shadow-md"
+                  onClick={() => setEdit(true)}
+                >
+                  <img src={profileData?.profileImage || dp} alt="Profile" className="w-full h-full object-cover" />
+                </div>
 
-              {/* Name & Details */}
-              {/* FIX 2: Added 'sm:mt-16' and 'mb-2' to push text down to white area */}
-              <div className="mt-2 sm:mt-16 mb-2 flex-1">
-                <h1 className="text-3xl font-bold leading-tight">
-                  {profileData?.firstName} {profileData?.lastName}
-                </h1>
-                <p className="text-gray-600 mt-1">{profileData?.headline || 'No headline'}</p>
-                <p className="text-gray-500 text-sm mt-1">{profileData?.location || 'No location'}</p>
+                {/* Name & Details - Stays on white background */}
+                <div className="flex-1 text-center sm:text-left mt-2 sm:mt-0 sm:pb-2">
+                  <h1 className="text-3xl font-bold leading-tight">
+                    {profileData?.firstName} {profileData?.lastName}
+                  </h1>
+                  <p className="text-gray-600 font-medium">{profileData?.headline || 'No headline'}</p>
+                  <p className="text-gray-500 text-sm">{profileData?.location || 'No location'}</p>
+                  
+                  <p className="text-gray-500 font-medium mt-1">
+                    {connectionsCount} connection{connectionsCount !== 1 && 's'}
+                  </p>
+                </div>
 
-                <p className="text-gray-500 font-medium mt-2">
-                  {connectionsCount} connection{connectionsCount !== 1 && 's'}
-                </p>
-
-                <div className="mt-4">
+                {/* Action Button */}
+                <div className="mt-4 sm:mt-0 sm:pb-4">
                   {profileData?._id === userData?._id ? (
                     <button
                       onClick={() => setEdit(true)}
-                      className="px-5 py-2 bg-gradient-to-r from-yellow-400 to-yellow-500 text-black rounded-full font-semibold hover:brightness-105 transition flex items-center gap-2"
+                      className="px-5 py-2 bg-gradient-to-r from-yellow-400 to-yellow-500 text-black rounded-full font-semibold hover:brightness-105 transition flex items-center gap-2 shadow-sm"
                     >
                       Edit Profile <HiPencil />
                     </button>
@@ -107,6 +111,7 @@ function Profile() {
                     <ConnectionButton userId={profileData?._id} />
                   )}
                 </div>
+
               </div>
             </div>
           </div>
@@ -126,7 +131,7 @@ function Profile() {
           </div>
         </section>
 
-        {/* RIGHT SECTION - Same as before */}
+        {/* RIGHT SECTION */}
         <aside className="w-full lg:w-80 space-y-6">
           {skills.length > 0 && (
             <InfoCard title="Skills">
