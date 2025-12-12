@@ -17,9 +17,15 @@ function UserContext({ children }) {
   // Fetch Current User
   const getCurrentUser = async () => {
     try {
+      const token = localStorage.getItem('token');
+      const config = {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        withCredentials: true
+      };
+      
       const result = await axios.get(
         `${serverUrl}/api/user/currentuser`,
-        { withCredentials: true }
+        config
       );
       setUserData(result.data);
     } catch (error) {
@@ -28,16 +34,24 @@ function UserContext({ children }) {
     }
   };
 
-  // Fetch Posts
+  // Fetch Posts - FIXED: Handle direct array response
   const getPost = async () => {
     try {
+      const token = localStorage.getItem('token');
+      const config = {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        withCredentials: true
+      };
+      
       const result = await axios.get(
         `${serverUrl}/api/post/getpost`,
-        { withCredentials: true }
+        config
       );
 
-      // ✅ FIX: Backend sends direct array, not an object with 'posts' key
-      setPostData(result.data || []); 
+      // Backend returns direct array, not an object
+      const posts = Array.isArray(result.data) ? result.data : [];
+      setPostData(posts);
+      console.log('Posts loaded:', posts.length);
 
     } catch (error) {
       console.error("Fetch posts error:", error);
@@ -48,9 +62,15 @@ function UserContext({ children }) {
   // Fetch Selected Profile
   const handleGetProfile = async (userName) => {
     try {
+      const token = localStorage.getItem('token');
+      const config = {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        withCredentials: true
+      };
+      
       const result = await axios.get(
         `${serverUrl}/api/user/profile/${userName}`,
-        { withCredentials: true }
+        config
       );
       setProfileData(result.data);
       navigate("/profile");

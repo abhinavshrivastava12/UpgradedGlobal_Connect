@@ -1,15 +1,12 @@
+
 import React, { useContext, useEffect, useState } from 'react';
 import Nav from '../components/Nav';
 import dp from "../assets/dp.webp";
 import { HiPencil } from "react-icons/hi2";
 import { userDataContext } from '../context/UserContext';
-import { authDataContext } from '../context/AuthContext';
 import EditProfile from '../components/EditProfile';
 import Post from '../components/Post';
 import ConnectionButton from '../components/ConnectionButton';
-import { io } from "socket.io-client";
-
-const socket = io();
 
 function Profile() {
   const { userData, edit, setEdit, postData, profileData } = useContext(userDataContext);
@@ -19,32 +16,11 @@ function Profile() {
     if (Array.isArray(postData) && profileData?._id) {
       const filtered = postData.filter((post) => post?.author?._id === profileData._id);
       setProfilePosts(filtered);
+      console.log('Profile posts:', filtered.length);
     } else {
       setProfilePosts([]);
     }
   }, [profileData, postData]);
-
-  // Socket logic same as before...
-  useEffect(() => {
-    socket.on("likeUpdated", ({ postId, likes }) => {
-      setProfilePosts((prev) =>
-        prev.map((post) => post._id === postId ? { ...post, like: Array.isArray(likes) ? likes : [] } : post)
-      );
-    });
-    socket.on("commentAdded", ({ postId, comments }) => {
-      setProfilePosts((prev) =>
-        prev.map((post) => post._id === postId ? { ...post, comment: Array.isArray(comments) ? comments : [] } : post)
-      );
-    });
-    socket.on("postReposted", ({ postId, newPost }) => {
-      setProfilePosts((prev) => [newPost, ...prev]);
-    });
-    return () => {
-      socket.off("likeUpdated");
-      socket.off("commentAdded");
-      socket.off("postReposted");
-    };
-  }, []);
 
   const skills = profileData?.skills ?? [];
   const education = profileData?.education ?? [];
@@ -52,131 +28,192 @@ function Profile() {
   const connectionsCount = profileData?.connection?.length ?? 0;
 
   return (
-    // FIX 1: Padding top 100px for Navbar overlap
-    <div className="min-h-screen bg-gradient-to-br from-[#1A1A71] to-[#2C2C3C] text-white flex flex-col items-center pt-[100px] pb-10">
+    <div className="min-h-screen bg-gradient-to-br from-[#1A1A71] to-[#2C2C3C] text-white pt-20">
       <Nav />
       {edit && <EditProfile />}
 
-      <div className="max-w-7xl w-full flex flex-col lg:flex-row gap-6 px-4">
-        {/* LEFT SECTION */}
-        <section className="flex-1 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="flex flex-col lg:flex-row gap-6">
+          
+          {/* LEFT SECTION */}
+          <section className="flex-1 space-y-6">
 
-          {/* PROFILE CARD */}
-          <div className="bg-white text-black rounded-xl shadow relative">
-            
-            {/* Cover Image */}
-            <div className="h-36 rounded-t-xl overflow-hidden bg-gray-200 w-full">
-              {profileData?.coverImage ? (
-                <img src={profileData.coverImage} alt="Cover" className="w-full h-full object-cover" />
-              ) : (
-                <div className="flex items-center justify-center h-full text-gray-400">No Cover Photo</div>
-              )}
+            {/* PROFILE CARD - FIXED LAYOUT */}
+            <div className="bg-white text-black rounded-2xl shadow-xl overflow-hidden">
+              
+              {/* Cover Image */}
+              <div className="h-48 bg-gradient-to-r from-blue-500 to-purple-600 relative">
+                {profileData?.coverImage && (
+                  <img 
+                    src={profileData.coverImage} 
+                    alt="Cover" 
+                    className="w-full h-full object-cover"
+                  />
+                )}
+              </div>
+
+              {/* Profile Content */}
+              <div className="px-6 pb-6">
+                <div className="flex flex-col sm:flex-row items-start gap-6 -mt-16 relative">
+                  
+                  {/* Profile Image - Floating above cover */}
+                  <div 
+                    className="w-32 h-32 rounded-full border-4 border-white overflow-hidden cursor-pointer bg-white shadow-xl flex-shrink-0 z-10"
+                    onClick={() => userData?._id === profileData?._id && setEdit(true)}
+                  >
+                    <img 
+                      src={profileData?.profileImage || dp} 
+                      alt="Profile" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+
+                  {/* Name & Details Section */}
+                  <div className="flex-1 mt-16 sm:mt-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <h1 className="text-3xl font-bold text-gray-900">
+                          {profileData?.firstName} {profileData?.lastName}
+                        </h1>
+                        <p className="text-gray-600 font-medium mt-1">
+                          {profileData?.headline || 'No headline'}
+                        </p>
+                        <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                          <span className="flex items-center gap-1">
+                            📍 {profileData?.location || 'No location'}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            🔗 {connectionsCount} connection{connectionsCount !== 1 && 's'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Action Button */}
+                      <div className="flex-shrink-0">
+                        {profileData?._id === userData?._id ? (
+                          <button
+                            onClick={() => setEdit(true)}
+                            className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full font-semibold hover:from-blue-700 hover:to-purple-700 transition-all flex items-center gap-2 shadow-lg"
+                          >
+                            <HiPencil className="w-4 h-4" />
+                            Edit Profile
+                          </button>
+                        ) : (
+                          <ConnectionButton userId={profileData?._id} />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
             </div>
 
-            {/* Profile Header Content */}
-            <div className="px-6 pb-6">
-              <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4 -mt-12 sm:-mt-16">
-                
-                {/* Profile Image - Only this moves up */}
-                <div 
-                  className="w-32 h-32 rounded-full border-4 border-white overflow-hidden cursor-pointer bg-white relative z-10 flex-shrink-0 shadow-md"
-                  onClick={() => setEdit(true)}
-                >
-                  <img src={profileData?.profileImage || dp} alt="Profile" className="w-full h-full object-cover" />
-                </div>
-
-                {/* Name & Details - Stays on white background */}
-                <div className="flex-1 text-center sm:text-left mt-2 sm:mt-0 sm:pb-2">
-                  <h1 className="text-3xl font-bold leading-tight">
-                    {profileData?.firstName} {profileData?.lastName}
-                  </h1>
-                  <p className="text-gray-600 font-medium">{profileData?.headline || 'No headline'}</p>
-                  <p className="text-gray-500 text-sm">{profileData?.location || 'No location'}</p>
-                  
-                  <p className="text-gray-500 font-medium mt-1">
-                    {connectionsCount} connection{connectionsCount !== 1 && 's'}
-                  </p>
-                </div>
-
-                {/* Action Button */}
-                <div className="mt-4 sm:mt-0 sm:pb-4">
-                  {profileData?._id === userData?._id ? (
-                    <button
-                      onClick={() => setEdit(true)}
-                      className="px-5 py-2 bg-gradient-to-r from-yellow-400 to-yellow-500 text-black rounded-full font-semibold hover:brightness-105 transition flex items-center gap-2 shadow-sm"
-                    >
-                      Edit Profile <HiPencil />
-                    </button>
-                  ) : (
-                    <ConnectionButton userId={profileData?._id} />
+            {/* POSTS SECTION - FIXED */}
+            <div className="bg-white text-black rounded-2xl shadow-xl p-6">
+              <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                📝 Posts
+                <span className="text-sm font-normal text-gray-500">
+                  ({profilePosts.length})
+                </span>
+              </h2>
+              
+              {profilePosts.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">📭</div>
+                  <p className="text-gray-500 text-lg">No posts yet</p>
+                  {profileData?._id === userData?._id && (
+                    <p className="text-gray-400 text-sm mt-2">
+                      Start sharing your thoughts!
+                    </p>
                   )}
                 </div>
-
-              </div>
+              ) : (
+                <div className="space-y-6">
+                  {profilePosts.map((post) => (
+                    <div key={post._id} className="border-b border-gray-100 pb-6 last:border-0">
+                      <Post {...post} />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
+          </section>
 
-          {/* POSTS */}
-          <div className="bg-white text-black rounded-xl shadow p-6">
-            <h2 className="text-2xl font-semibold mb-4">Posts ({profilePosts.length})</h2>
-            {profilePosts.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">No posts available</p>
-            ) : (
-              <div className="space-y-4">
-                {profilePosts.map((post) => (
-                  <Post key={post._id} {...post} />
-                ))}
+          {/* RIGHT SIDEBAR */}
+          <aside className="w-full lg:w-96 space-y-6">
+            
+            {/* Skills Card */}
+            {skills.length > 0 && (
+              <div className="bg-white text-black rounded-2xl shadow-xl p-6">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  💡 Skills
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {skills.map((skill, idx) => (
+                    <span 
+                      key={idx} 
+                      className="bg-gradient-to-r from-blue-50 to-purple-50 text-gray-800 border border-blue-200 rounded-full px-4 py-2 text-sm font-medium hover:shadow-md transition-shadow"
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
-          </div>
-        </section>
 
-        {/* RIGHT SECTION */}
-        <aside className="w-full lg:w-80 space-y-6">
-          {skills.length > 0 && (
-            <InfoCard title="Skills">
-              <div className="flex flex-wrap gap-2">
-                {skills.map((skill, idx) => (
-                  <span key={idx} className="bg-gray-100 text-gray-800 rounded-full px-3 py-1 text-sm font-medium">
-                    {skill}
-                  </span>
-                ))}
+            {/* Education Card */}
+            {education.length > 0 && (
+              <div className="bg-white text-black rounded-2xl shadow-xl p-6">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  🎓 Education
+                </h3>
+                <div className="space-y-4">
+                  {education.map((edu, idx) => (
+                    <div 
+                      key={idx} 
+                      className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:shadow-md transition-shadow"
+                    >
+                      <p className="font-bold text-gray-900">{edu.college}</p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {edu.degree} - {edu.fieldOfStudy}
+                      </p>
+                      {edu.startYear && edu.endYear && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {edu.startYear} - {edu.endYear}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </InfoCard>
-          )}
+            )}
 
-          {education.length > 0 && (
-            <InfoCard title="Education">
-              {education.map((edu, idx) => (
-                <div key={idx} className="bg-gray-50 rounded-lg p-3 mb-3 border border-gray-100">
-                  <p className="font-bold text-gray-800">{edu.college}</p>
-                  <p className="text-sm text-gray-600">{edu.degree} - {edu.fieldOfStudy}</p>
+            {/* Experience Card */}
+            {experience.length > 0 && (
+              <div className="bg-white text-black rounded-2xl shadow-xl p-6">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  💼 Experience
+                </h3>
+                <div className="space-y-4">
+                  {experience.map((exp, idx) => (
+                    <div 
+                      key={idx} 
+                      className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:shadow-md transition-shadow"
+                    >
+                      <p className="font-bold text-gray-900">{exp.title}</p>
+                      <p className="text-sm text-gray-600 mt-1">{exp.company}</p>
+                      {exp.description && (
+                        <p className="text-sm text-gray-500 mt-2">{exp.description}</p>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </InfoCard>
-          )}
-
-          {experience.length > 0 && (
-            <InfoCard title="Experience">
-              {experience.map((exp, idx) => (
-                <div key={idx} className="bg-gray-50 rounded-lg p-3 mb-3 border border-gray-100">
-                  <p className="font-bold text-gray-800">{exp.title} <span className="text-gray-500 font-normal">at</span> {exp.company}</p>
-                  <p className="text-sm text-gray-600 mt-1">{exp.description}</p>
-                </div>
-              ))}
-            </InfoCard>
-          )}
-        </aside>
+              </div>
+            )}
+          </aside>
+        </div>
       </div>
-    </div>
-  );
-}
-
-function InfoCard({ title, children }) {
-  return (
-    <div className="bg-white text-black rounded-xl shadow p-6">
-      <h3 className="text-xl font-bold mb-4 border-b pb-2 border-gray-100">{title}</h3>
-      {children}
     </div>
   );
 }

@@ -25,6 +25,10 @@ const userSchema = new mongoose.Schema({
         trim: true,
         lowercase: true
     },
+    password: {
+        type: String,
+        required: true
+    },
     isEmailVerified: {
         type: Boolean,
         default: true
@@ -81,7 +85,17 @@ const userSchema = new mongoose.Schema({
     phoneNumber: {
         type: String,
         default: ""
-    }
+    },
+    gender: {
+        type: String,
+        enum: ["male", "female", "other", ""],
+        default: ""
+    },
+    // CRITICAL FIX: Add connection field
+    connection: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+    }]
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);

@@ -1,13 +1,18 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Bot, User } from "lucide-react";
+import { Send, Bot, User, X, Minimize2, Maximize2 } from "lucide-react";
 
 function AIChat() {
   const [messages, setMessages] = useState([
-    { from: "ai", text: "Hi! I'm your Global Connect assistant. How can I help you today?", id: Date.now() },
+    { 
+      from: "ai", 
+      text: "Hi! I'm your Global Connect assistant. How can I help you today?", 
+      id: Date.now() 
+    },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -25,11 +30,8 @@ function AIChat() {
     const userMessage = { from: "user", text: input.trim(), id: Date.now() };
     const currentInput = input.trim();
 
-    // ✅ Defensive update: Ensure 'prev' is an array before updating
-    setMessages((prev) =>
-      Array.isArray(prev) ? [...prev, userMessage] : [userMessage]
-    );
-
+    // Add user message
+    setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setLoading(true);
     setIsTyping(true);
@@ -43,6 +45,10 @@ function AIChat() {
         body: JSON.stringify({ code: currentInput }),
       });
 
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
       const data = await res.json();
       const aiText = data?.reply || "Sorry, I couldn't respond.";
       setIsTyping(false);
@@ -50,43 +56,40 @@ function AIChat() {
       const words = aiText.split(" ");
       let displayText = "";
 
-      // ✅ Add empty AI response with a unique ID right away
-      setMessages((prev) =>
-        Array.isArray(prev)
-          ? [...prev, { from: "ai", text: "", id: Date.now() }]
-          : [{ from: "ai", text: "", id: Date.now() }]
-      );
+      // Add empty AI response
+      const aiMessageId = Date.now();
+      setMessages((prev) => [...prev, { from: "ai", text: "", id: aiMessageId }]);
 
+      // Typewriter effect
       for (let i = 0; i < words.length; i++) {
         displayText += (i > 0 ? " " : "") + words[i];
 
         setMessages((prev) => {
-          // ✅ Defensive check: ensure 'prev' is an array
-          if (!Array.isArray(prev)) return [{ from: "ai", text: displayText, id: Date.now() }];
           const newMessages = [...prev];
-          const lastMessageIndex = newMessages.length - 1;
-
-          if (newMessages[lastMessageIndex]?.from === "ai") {
-            newMessages[lastMessageIndex] = {
-              ...newMessages[lastMessageIndex],
+          const lastIndex = newMessages.findIndex(m => m.id === aiMessageId);
+          if (lastIndex !== -1) {
+            newMessages[lastIndex] = {
+              ...newMessages[lastIndex],
               text: displayText,
             };
           }
           return newMessages;
         });
 
-        await new Promise((resolve) => setTimeout(resolve, 80));
+        await new Promise((resolve) => setTimeout(resolve, 50));
       }
     } catch (error) {
       console.error("Error sending message:", error);
       setIsTyping(false);
       
-      // ✅ Defensive update on error as well
-      setMessages((prev) =>
-        Array.isArray(prev)
-          ? [...prev, { from: "ai", text: "Sorry, I couldn't respond. Please try again.", id: Date.now() }]
-          : [{ from: "ai", text: "Sorry, I couldn't respond. Please try again.", id: Date.now() }]
-      );
+      setMessages((prev) => [
+        ...prev,
+        { 
+          from: "ai", 
+          text: "Sorry, I couldn't respond. Please try again.", 
+          id: Date.now() 
+        }
+      ]);
     } finally {
       setLoading(false);
       inputRef.current?.focus();
@@ -101,74 +104,91 @@ function AIChat() {
   };
 
   const TypingIndicator = () => (
-    <div className="flex items-center gap-2 p-3 bg-[#1A1F71] rounded-2xl rounded-bl-md max-w-[80%] self-start animate-pulse">
+    <div className="flex items-center gap-2 p-3 bg-[#1A1F71] rounded-2xl rounded-bl-md max-w-[80%] self-start">
       <Bot className="w-4 h-4 text-[#FFD700]" />
       <div className="flex gap-1">
-        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-        <div
-          className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-          style={{ animationDelay: "0.1s" }}
-        ></div>
-        <div
-          className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-          style={{ animationDelay: "0.2s" }}
-        ></div>
+        {[0, 0.1, 0.2].map((delay, i) => (
+          <div
+            key={i}
+            className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+            style={{ animationDelay: `${delay}s` }}
+          />
+        ))}
       </div>
     </div>
   );
+
+  if (isMinimized) {
+    return (
+      <div className="fixed bottom-4 right-4 z-50">
+        <button
+          onClick={() => setIsMinimized(false)}
+          className="bg-gradient-to-r from-[#1A1F71] to-[#2a2f8a] text-white rounded-full p-4 shadow-2xl hover:scale-110 transition-transform flex items-center gap-2"
+        >
+          <Bot className="w-6 h-6 text-[#FFD700]" />
+          <span className="font-semibold">AI Assistant</span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full lg:w-[25%] bg-gradient-to-br from-[#2C2C2C] to-[#1e1e1e] rounded-2xl shadow-2xl flex flex-col h-[90vh] mt-[90px] border border-[#3a3a3a]">
       {/* Header */}
       <div className="bg-gradient-to-r from-[#1A1F71] to-[#2a2f8a] p-4 rounded-t-2xl border-b border-[#3a3a3a]">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-[#FFD700] rounded-full flex items-center justify-center">
-            <Bot className="w-6 h-6 text-[#1A1F71]" />
-          </div>
-          <div>
-            <h3 className="font-bold text-lg text-white">AI Assistant</h3>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-              <span className="text-xs text-gray-300">Online</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[#FFD700] rounded-full flex items-center justify-center">
+              <Bot className="w-6 h-6 text-[#1A1F71]" />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg text-white">AI Assistant</h3>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span className="text-xs text-gray-300">Online</span>
+              </div>
             </div>
           </div>
+          <button
+            onClick={() => setIsMinimized(true)}
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+          >
+            <Minimize2 className="w-5 h-5 text-white" />
+          </button>
         </div>
       </div>
 
       {/* Chat messages */}
       <div className="flex-1 p-4 flex flex-col gap-3 overflow-y-auto scrollbar-thin scrollbar-thumb-[#4a4a4a] scrollbar-track-transparent">
-        {Array.isArray(messages) &&
-          messages.map((msg) => (
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={`flex items-start gap-2 ${
+              msg.from === "ai" ? "self-start" : "self-end flex-row-reverse"
+            }`}
+          >
             <div
-              key={msg.id}
-              className={`flex items-start gap-2 animate-in slide-in-from-bottom-2 duration-300 ${
-                msg.from === "ai"
-                  ? "self-start"
-                  : "self-end flex-row-reverse"
+              className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                msg.from === "ai" ? "bg-[#FFD700]" : "bg-[#1A1F71]"
               }`}
             >
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  msg.from === "ai" ? "bg-[#FFD700]" : "bg-[#1A1F71]"
-                }`}
-              >
-                {msg.from === "ai" ? (
-                  <Bot className="w-4 h-4 text-[#1A1F71]" />
-                ) : (
-                  <User className="w-4 h-4 text-white" />
-                )}
-              </div>
-              <div
-                className={`p-3 rounded-2xl max-w-[80%] shadow-md transition-all duration-200 hover:shadow-lg ${
-                  msg.from === "ai"
-                    ? "bg-[#1A1F71] text-white rounded-bl-md"
-                    : "bg-gradient-to-r from-[#FFD700] to-[#ffd700dd] text-[#1A1F71] rounded-br-md font-medium"
-                }`}
-              >
-                <p className="text-sm leading-relaxed">{msg.text}</p>
-              </div>
+              {msg.from === "ai" ? (
+                <Bot className="w-4 h-4 text-[#1A1F71]" />
+              ) : (
+                <User className="w-4 h-4 text-white" />
+              )}
             </div>
-          ))}
+            <div
+              className={`p-3 rounded-2xl max-w-[80%] shadow-md ${
+                msg.from === "ai"
+                  ? "bg-[#1A1F71] text-white rounded-bl-md"
+                  : "bg-gradient-to-r from-[#FFD700] to-[#ffd700dd] text-[#1A1F71] rounded-br-md font-medium"
+              }`}
+            >
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+            </div>
+          </div>
+        ))}
 
         {isTyping && <TypingIndicator />}
         <div ref={messagesEndRef} />
@@ -180,7 +200,7 @@ function AIChat() {
           <div className="flex-1 relative">
             <textarea
               ref={inputRef}
-              className="w-full p-3 pr-12 rounded-xl bg-[#1A1F71] text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#FFD700] resize-none transition-all duration-200"
+              className="w-full p-3 pr-12 rounded-xl bg-[#1A1F71] text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#FFD700] resize-none"
               placeholder="Type your message..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -201,7 +221,7 @@ function AIChat() {
           </div>
           <button
             className={`p-3 rounded-xl font-bold transition-all duration-200 flex items-center justify-center min-w-[48px] h-12 ${
-              loading
+              loading || !input.trim()
                 ? "bg-gray-600 cursor-not-allowed"
                 : "bg-gradient-to-r from-[#FFD700] to-[#ffd700dd] text-[#1A1F71] hover:shadow-lg hover:scale-105 active:scale-95"
             }`}
