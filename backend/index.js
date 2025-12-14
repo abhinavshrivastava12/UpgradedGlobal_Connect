@@ -21,41 +21,52 @@ import chatRoutes from "./routes/chat.routes.js";
 import agoraRoutes from "./routes/agora.routes.js";
 import Message from "./models/Message.js";
 
-// Load environment variables from .env file
 dotenv.config({ path: "./.env" });
 
-// -------------------- APP + SERVER --------------------
 const app = express();
 const server = http.createServer(app);
-
-// Use a dynamic port for deployment
 const port = process.env.PORT || 8000;
 
-// Get the directory name for serving static files
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// -------------------- MIDDLEWARE --------------------
-app.use(express.json()); // Body parser for JSON
-app.use(cookieParser()); // Cookie parser
+// ==================== MIDDLEWARE ====================
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(cookieParser());
 
-// -------------------- Serve Frontend Static Files FIRST --------------------
-// ✅ FIX: This must be before all other routing logic (API and catch-all)
+// ==================== SERVE FRONTEND ====================
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// CORS CONFIGURATION (Only for API routes to handle credentials)
-const allowedOrigins = [
-  "http://localhost:5173",
-];
+// ==================== CORS CONFIGURATION ====================
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      process.env.FRONTEND_URL
+    ].filter(Boolean);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      // For same-origin deployment
+      callback(null, true);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
+};
 
-// -------------------- API ROUTES --------------------
-// ✅ FIX: Simplified CORS for same-origin deployment
-app.use("/api", cors({
-  origin: true, // Allow same-origin requests
-  credentials: true, // Essential for cookies/auth to work
-}));
+// Apply CORS to all API routes
+app.use("/api", cors(corsOptions));
+app.options("*", cors(corsOptions)); // Handle preflight requests
 
-// API Router imports
+// ==================== API ROUTES ====================
 app.use("/api/auth", authRouter);
 app.use("/api/user", userRouter);
 app.use("/api/post", postRouter);
@@ -66,17 +77,15 @@ app.use("/api/ai", aiRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/agora", agoraRoutes);
 
-// -------------------- SOCKET.IO SETUP --------------------
+// ==================== SOCKET.IO SETUP ====================
 export const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins,
-    credentials: true,
-  },
+  cors: corsOptions,
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
-// Maps to track user presence
-export const userSocketMap = new Map(); // userId -> socketId
-const activeUsers = {}; // socketId -> { userId, email, lastSeen }
+export const userSocketMap = new Map();
+const activeUsers = {};
 
 const sendOnlineUsers = () => {
   const users = Object.values(activeUsers).map((u) => ({
@@ -110,6 +119,7 @@ io.on("connection", (socket) => {
         return;
       }
 
+      // Remove old socket if exists
       const oldSocketId = userSocketMap.get(userId);
       if (oldSocketId && oldSocketId !== socket.id) {
         console.log(`Removing old connection for user ${userId}: ${oldSocketId}`);
@@ -265,13 +275,12 @@ io.on("connection", (socket) => {
   });
 });
 
-// -------------------- Catch-all Route for Frontend HTML --------------------
-// ✅ This must be the last route.
+// ==================== CATCH-ALL FOR FRONTEND ====================
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-// -------------------- GLOBAL ERROR HANDLERS --------------------
+// ==================== ERROR HANDLERS ====================
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
@@ -283,7 +292,7 @@ process.on('uncaughtException', (error) => {
   }
 });
 
-// -------------------- START SERVER --------------------
+// ==================== START SERVER ====================
 server.listen(port, () => {
   connectDb();
   console.log(`🚀 Server started on port ${port}`);

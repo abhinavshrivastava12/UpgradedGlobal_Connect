@@ -14,7 +14,7 @@
     "@esbuild-plugins/node-modules-polyfill": "^0.2.2",
     "agora-access-token": "^2.0.4",
     "agora-rtc-sdk-ng": "^4.24.0",
-    "axios": "^1.11.0",
+    "axios": "^1.13.2",
     "buffer": "^6.0.3",
     "events": "^3.3.0",
     "lucide-react": "^0.542.0",

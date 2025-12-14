@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, X, Minimize2, Maximize2 } from "lucide-react";
+import { Send, Bot, User, Minimize2 } from "lucide-react";
 
 function AIChat() {
   const [messages, setMessages] = useState([
@@ -30,18 +30,20 @@ function AIChat() {
     const userMessage = { from: "user", text: input.trim(), id: Date.now() };
     const currentInput = input.trim();
 
-    // Add user message
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setLoading(true);
     setIsTyping(true);
 
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch("/api/ai/get-res", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
         },
+        credentials: 'include',
         body: JSON.stringify({ code: currentInput }),
       });
 
@@ -56,11 +58,9 @@ function AIChat() {
       const words = aiText.split(" ");
       let displayText = "";
 
-      // Add empty AI response
       const aiMessageId = Date.now();
       setMessages((prev) => [...prev, { from: "ai", text: "", id: aiMessageId }]);
 
-      // Typewriter effect
       for (let i = 0; i < words.length; i++) {
         displayText += (i > 0 ? " " : "") + words[i];
 
@@ -104,8 +104,8 @@ function AIChat() {
   };
 
   const TypingIndicator = () => (
-    <div className="flex items-center gap-2 p-3 bg-[#1A1F71] rounded-2xl rounded-bl-md max-w-[80%] self-start">
-      <Bot className="w-4 h-4 text-[#FFD700]" />
+    <div className="flex items-center gap-2 p-3 bg-slate-700 rounded-2xl rounded-bl-md max-w-[80%] self-start">
+      <Bot className="w-4 h-4 text-purple-400" />
       <div className="flex gap-1">
         {[0, 0.1, 0.2].map((delay, i) => (
           <div
@@ -123,9 +123,9 @@ function AIChat() {
       <div className="fixed bottom-4 right-4 z-50">
         <button
           onClick={() => setIsMinimized(false)}
-          className="bg-gradient-to-r from-[#1A1F71] to-[#2a2f8a] text-white rounded-full p-4 shadow-2xl hover:scale-110 transition-transform flex items-center gap-2"
+          className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full p-4 shadow-2xl hover:scale-110 transition-transform flex items-center gap-2"
         >
-          <Bot className="w-6 h-6 text-[#FFD700]" />
+          <Bot className="w-6 h-6 text-white" />
           <span className="font-semibold">AI Assistant</span>
         </button>
       </div>
@@ -133,19 +133,20 @@ function AIChat() {
   }
 
   return (
-    <div className="w-full lg:w-[25%] bg-gradient-to-br from-[#2C2C2C] to-[#1e1e1e] rounded-2xl shadow-2xl flex flex-col h-[90vh] mt-[90px] border border-[#3a3a3a]">
+    <div className="w-full lg:w-[25%] bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl flex flex-col h-[90vh] mt-[90px] border border-slate-700">
+      
       {/* Header */}
-      <div className="bg-gradient-to-r from-[#1A1F71] to-[#2a2f8a] p-4 rounded-t-2xl border-b border-[#3a3a3a]">
+      <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-4 rounded-t-2xl border-b border-slate-700">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#FFD700] rounded-full flex items-center justify-center">
-              <Bot className="w-6 h-6 text-[#1A1F71]" />
+            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
+              <Bot className="w-6 h-6 text-purple-600" />
             </div>
             <div>
               <h3 className="font-bold text-lg text-white">AI Assistant</h3>
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-xs text-gray-300">Online</span>
+                <span className="text-xs text-gray-100">Online</span>
               </div>
             </div>
           </div>
@@ -159,7 +160,7 @@ function AIChat() {
       </div>
 
       {/* Chat messages */}
-      <div className="flex-1 p-4 flex flex-col gap-3 overflow-y-auto scrollbar-thin scrollbar-thumb-[#4a4a4a] scrollbar-track-transparent">
+      <div className="flex-1 p-4 flex flex-col gap-3 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -169,11 +170,11 @@ function AIChat() {
           >
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                msg.from === "ai" ? "bg-[#FFD700]" : "bg-[#1A1F71]"
+                msg.from === "ai" ? "bg-purple-500" : "bg-pink-500"
               }`}
             >
               {msg.from === "ai" ? (
-                <Bot className="w-4 h-4 text-[#1A1F71]" />
+                <Bot className="w-4 h-4 text-white" />
               ) : (
                 <User className="w-4 h-4 text-white" />
               )}
@@ -181,8 +182,8 @@ function AIChat() {
             <div
               className={`p-3 rounded-2xl max-w-[80%] shadow-md ${
                 msg.from === "ai"
-                  ? "bg-[#1A1F71] text-white rounded-bl-md"
-                  : "bg-gradient-to-r from-[#FFD700] to-[#ffd700dd] text-[#1A1F71] rounded-br-md font-medium"
+                  ? "bg-slate-700 text-white rounded-bl-md"
+                  : "bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-br-md font-medium"
               }`}
             >
               <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
@@ -195,12 +196,12 @@ function AIChat() {
       </div>
 
       {/* Input area */}
-      <div className="p-4 border-t border-[#3a3a3a] bg-[#2a2a2a] rounded-b-2xl">
+      <div className="p-4 border-t border-slate-700 bg-slate-800 rounded-b-2xl">
         <div className="flex gap-3 items-end">
           <div className="flex-1 relative">
             <textarea
               ref={inputRef}
-              className="w-full p-3 pr-12 rounded-xl bg-[#1A1F71] text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#FFD700] resize-none"
+              className="w-full p-3 pr-12 rounded-xl bg-slate-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
               placeholder="Type your message..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -213,23 +214,18 @@ function AIChat() {
                 overflowY: input.length > 50 ? "auto" : "hidden",
               }}
             />
-            {input && (
-              <div className="absolute bottom-2 right-2 text-xs text-gray-400">
-                {input.length}/500
-              </div>
-            )}
           </div>
           <button
             className={`p-3 rounded-xl font-bold transition-all duration-200 flex items-center justify-center min-w-[48px] h-12 ${
               loading || !input.trim()
                 ? "bg-gray-600 cursor-not-allowed"
-                : "bg-gradient-to-r from-[#FFD700] to-[#ffd700dd] text-[#1A1F71] hover:shadow-lg hover:scale-105 active:scale-95"
+                : "bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:shadow-lg hover:scale-105 active:scale-95"
             }`}
             onClick={sendMessage}
             disabled={loading || !input.trim()}
           >
             {loading ? (
-              <div className="w-5 h-5 border-2 border-[#1A1F71] border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
             ) : (
               <Send className="w-5 h-5" />
             )}
@@ -238,7 +234,7 @@ function AIChat() {
 
         {loading && (
           <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
-            <div className="w-1 h-1 bg-[#FFD700] rounded-full animate-pulse"></div>
+            <div className="w-1 h-1 bg-purple-500 rounded-full animate-pulse"></div>
             AI is thinking...
           </div>
         )}
