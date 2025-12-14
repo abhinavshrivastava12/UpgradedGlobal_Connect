@@ -1,34 +1,34 @@
-import Post from "../models/post.model.js"
-import uploadOnCloudinary from "../config/cloudinary.js"
+import Post from "../models/post.model.js";
+import uploadOnCloudinary from "../config/cloudinary.js";
 import { io } from "../index.js";
 import Notification from "../models/notification.model.js";
 
 export const createPost = async (req, res) => {
     try {
-        let { description } = req.body
+        let { description } = req.body;
         let newPost;
         
         if (req.file) {
-            let image = await uploadOnCloudinary(req.file.path)
+            let image = await uploadOnCloudinary(req.file.path);
             newPost = await Post.create({
                 author: req.userId,
                 description,
                 image
-            })
+            });
         } else {
             newPost = await Post.create({
                 author: req.userId,
                 description
-            })
+            });
         }
         
         await newPost.populate("author", "firstName lastName profileImage headline userName");
-        return res.status(201).json(newPost)
+        return res.status(201).json(newPost);
     } catch (error) {
         console.error("Create post error:", error);
-        return res.status(500).json({ message: `Create post error: ${error}` })
+        return res.status(500).json({ message: `Create post error: ${error.message}` });
     }
-}
+};
 
 export const getPost = async (req, res) => {
     try {
@@ -42,69 +42,75 @@ export const getPost = async (req, res) => {
                     select: "firstName lastName profileImage headline userName"
                 }
             })
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean(); // Use lean for better performance
         
-        return res.status(200).json(posts);
+        return res.status(200).json(posts || []);
     } catch (error) {
         console.error("Get posts error:", error);
-        return res.status(500).json({ message: "Get posts error" });
+        return res.status(500).json({ 
+            message: "Failed to fetch posts",
+            error: error.message 
+        });
     }
-}
+};
 
 export const like = async (req, res) => {
     try {
-        let postId = req.params.id
-        let userId = req.userId
-        let post = await Post.findById(postId)
+        let postId = req.params.id;
+        let userId = req.userId;
+        let post = await Post.findById(postId);
         
         if (!post) {
-            return res.status(404).json({ message: "Post not found" })
+            return res.status(404).json({ message: "Post not found" });
         }
         
         const userIdStr = userId.toString();
-        const likeExists = post.like.some(id => id.toString() === userIdStr);
+        const likeExists = post.like && post.like.some(id => id.toString() === userIdStr);
         
         if (likeExists) {
-            post.like = post.like.filter((id) => id.toString() !== userIdStr)
+            post.like = post.like.filter((id) => id.toString() !== userIdStr);
         } else {
-            post.like.push(userId)
+            if (!post.like) post.like = [];
+            post.like.push(userId);
+            
             if (post.author.toString() !== userIdStr) {
                 await Notification.create({
                     receiver: post.author,
                     type: "like",
                     relatedUser: userId,
                     relatedPost: postId
-                })
+                });
             }
         }
         
-        await post.save()
-        io.emit("likeUpdated", { postId: postId, likes: post.like })
-        return res.status(200).json(post)
+        await post.save();
+        io.emit("likeUpdated", { postId: postId, likes: post.like });
+        return res.status(200).json(post);
     } catch (error) {
         console.error("Like error:", error);
-        return res.status(500).json({ message: `Like error: ${error}` })
+        return res.status(500).json({ message: `Like error: ${error.message}` });
     }
-}
+};
 
 export const comment = async (req, res) => {
     try {
-        let postId = req.params.id
-        let userId = req.userId
-        let { content } = req.body
+        let postId = req.params.id;
+        let userId = req.userId;
+        let { content } = req.body;
 
         if (!content || !content.trim()) {
-            return res.status(400).json({ message: "Comment content required" })
+            return res.status(400).json({ message: "Comment content required" });
         }
 
         let post = await Post.findByIdAndUpdate(
             postId,
             { $push: { comment: { content: content.trim(), user: userId } } },
             { new: true }
-        ).populate("comment.user", "firstName lastName profileImage headline")
+        ).populate("comment.user", "firstName lastName profileImage headline");
         
         if (!post) {
-            return res.status(404).json({ message: "Post not found" })
+            return res.status(404).json({ message: "Post not found" });
         }
 
         if (post.author.toString() !== userId.toString()) {
@@ -113,16 +119,16 @@ export const comment = async (req, res) => {
                 type: "comment",
                 relatedUser: userId,
                 relatedPost: postId
-            })
+            });
         }
         
-        io.emit("commentAdded", { postId: postId, comments: post.comment })
-        return res.status(200).json(post)
+        io.emit("commentAdded", { postId: postId, comments: post.comment });
+        return res.status(200).json(post);
     } catch (error) {
         console.error("Comment error:", error);
-        return res.status(500).json({ message: `Comment error: ${error}` })
+        return res.status(500).json({ message: `Comment error: ${error.message}` });
     }
-}
+};
 
 export const repost = async (req, res) => {
     try {

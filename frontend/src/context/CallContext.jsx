@@ -3,7 +3,12 @@ import Peer from 'simple-peer';
 import io from 'socket.io-client';
 
 const CallContext = createContext();
-const socket = io('/');
+
+// ✅ FIXED: Backend ka correct URL use karo
+const socket = io('http://localhost:8000', {
+  withCredentials: true,
+  transports: ['websocket', 'polling']
+});
 
 export const CallProvider = ({ children }) => {
   const [callAccepted, setCallAccepted] = useState(false);

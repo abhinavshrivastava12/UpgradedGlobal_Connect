@@ -1,13 +1,18 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Heart, MessageCircle, Repeat2, Share, Trash2, MoreHorizontal, Bookmark } from 'lucide-react';
+import { Heart, MessageCircle, Repeat2, Share, Trash2, MoreHorizontal } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import dp from '../assets/dp.webp';
 
-const Post = ({ post, currentUser, onDelete, onUpdate }) => {
+const Post = ({ post, currentUser, onDelete }) => {
+  // ✅ FIXED: Early validation
+  if (!post || !post._id) {
+    console.error('Invalid post data:', post);
+    return null;
+  }
+
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(0);
-  const [isRetweeted, setIsRetweeted] = useState(false);
-  const [retweetCount, setRetweetCount] = useState(0);
   const [showComments, setShowComments] = useState(false);
   const [comment, setComment] = useState('');
   const [comments, setComments] = useState([]);
@@ -16,24 +21,17 @@ const Post = ({ post, currentUser, onDelete, onUpdate }) => {
 
   useEffect(() => {
     if (post) {
-      setIsLiked(post.likes?.includes(currentUser?._id) || false);
-      setLikesCount(post.likes?.length || 0);
-      setIsRetweeted(post.retweets?.includes(currentUser?._id) || false);
-      setRetweetCount(post.retweets?.length || 0);
-      setComments(post.comments || []);
+      setIsLiked(post.like?.includes(currentUser?._id) || false);
+      setLikesCount(post.like?.length || 0);
+      setComments(post.comment || []);
     }
   }, [post, currentUser]);
-
-  if (!post || !post._id) {
-    console.error('Invalid post data:', post);
-    return null;
-  }
 
   const handleLike = async () => {
     try {
       const response = await axios.post(`/api/post/like/${post._id}`);
       
-      if (response.data.success) {
+      if (response.data) {
         setIsLiked(!isLiked);
         setLikesCount(isLiked ? likesCount - 1 : likesCount + 1);
       }
@@ -43,31 +41,17 @@ const Post = ({ post, currentUser, onDelete, onUpdate }) => {
     }
   };
 
-  const handleRetweet = async () => {
-    try {
-      const response = await axios.post(`/api/post/retweet/${post._id}`);
-      
-      if (response.data.success) {
-        setIsRetweeted(!isRetweeted);
-        setRetweetCount(isRetweeted ? retweetCount - 1 : retweetCount + 1);
-      }
-    } catch (error) {
-      console.error('Retweet error:', error);
-      alert('Failed to retweet');
-    }
-  };
-
   const handleComment = async (e) => {
     e.preventDefault();
     if (!comment.trim()) return;
 
     try {
       const response = await axios.post(`/api/post/comment/${post._id}`, {
-        text: comment.trim()
+        content: comment.trim()
       });
 
-      if (response.data.success) {
-        setComments([...comments, response.data.comment]);
+      if (response.data) {
+        setComments(response.data.comment || []);
         setComment('');
       }
     } catch (error) {
@@ -81,9 +65,9 @@ const Post = ({ post, currentUser, onDelete, onUpdate }) => {
     
     setIsDeleting(true);
     try {
-      const response = await axios.delete(`/api/post/${post._id}`);
+      const response = await axios.delete(`/api/post/delete/${post._id}`);
       
-      if (response.data.success) {
+      if (response.data) {
         if (onDelete) onDelete(post._id);
       }
     } catch (error) {
@@ -95,224 +79,188 @@ const Post = ({ post, currentUser, onDelete, onUpdate }) => {
     }
   };
 
-  const isOwner = currentUser?._id === post.user?._id;
+  const isOwner = currentUser?._id === post.author?._id;
+  const author = post.author || {};
 
   return (
-    <div className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
-      <div className="p-4">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-start space-x-3 flex-1 min-w-0">
-            <img
-              src={post.user?.profilePicture || '/default-avatar.png'}
-              alt={post.user?.username || 'User'}
-              className="w-12 h-12 rounded-full flex-shrink-0 object-cover"
-            />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center flex-wrap gap-2">
-                <span className="font-bold text-gray-900 truncate">
-                  {post.user?.name || 'Unknown User'}
-                </span>
-                <span className="text-gray-500 text-sm truncate">
-                  @{post.user?.username || 'unknown'}
-                </span>
-                <span className="text-gray-500 text-sm">·</span>
-                <span className="text-gray-500 text-sm flex-shrink-0">
-                  {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
-                </span>
-              </div>
+    <div className="border-b border-slate-700 hover:bg-slate-800/50 transition-colors p-6">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-start space-x-3 flex-1 min-w-0">
+          <img
+            src={author.profileImage || dp}
+            alt={author.userName || 'User'}
+            className="w-12 h-12 rounded-full flex-shrink-0 object-cover border-2 border-purple-500"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center flex-wrap gap-2">
+              <span className="font-bold text-white truncate">
+                {author.firstName && author.lastName 
+                  ? `${author.firstName} ${author.lastName}` 
+                  : author.userName || 'Unknown User'}
+              </span>
+              <span className="text-gray-400 text-sm truncate">
+                @{author.userName || 'unknown'}
+              </span>
+              <span className="text-gray-500 text-sm">·</span>
+              <span className="text-gray-500 text-sm flex-shrink-0">
+                {post.createdAt ? formatDistanceToNow(new Date(post.createdAt), { addSuffix: true }) : 'Just now'}
+              </span>
             </div>
+            {author.headline && (
+              <p className="text-sm text-gray-400 mt-1">{author.headline}</p>
+            )}
           </div>
-
-          {/* Menu */}
-          {isOwner && (
-            <div className="relative flex-shrink-0 ml-2">
-              <button
-                onClick={() => setShowMenu(!showMenu)}
-                className="p-2 hover:bg-blue-50 rounded-full transition-colors"
-              >
-                <MoreHorizontal className="w-5 h-5 text-gray-500" />
-              </button>
-              
-              {showMenu && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-10"
-                    onClick={() => setShowMenu(false)}
-                  />
-                  <div className="absolute right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20 min-w-[150px]">
-                    <button
-                      onClick={handleDelete}
-                      disabled={isDeleting}
-                      className="w-full px-4 py-2 text-left text-red-600 hover:bg-red-50 flex items-center space-x-2 disabled:opacity-50"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>{isDeleting ? 'Deleting...' : 'Delete Post'}</span>
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
         </div>
 
-        {/* Content */}
-        <div className="ml-0 md:ml-[60px]">
-          {post.text && (
-            <p className="text-gray-900 mb-3 whitespace-pre-wrap break-words">
-              {post.text}
-            </p>
-          )}
-
-          {/* Images */}
-          {post.images && post.images.length > 0 && (
-            <div className={`grid gap-2 mb-3 rounded-2xl overflow-hidden ${
-              post.images.length === 1 ? 'grid-cols-1' : 
-              post.images.length === 2 ? 'grid-cols-2' : 
-              post.images.length === 3 ? 'grid-cols-2' : 
-              'grid-cols-2'
-            }`}>
-              {post.images.map((img, idx) => (
-                <img
-                  key={idx}
-                  src={img}
-                  alt={`Post ${idx + 1}`}
-                  className={`w-full object-cover cursor-pointer ${
-                    post.images.length === 1 ? 'max-h-[500px]' : 
-                    post.images.length === 3 && idx === 0 ? 'row-span-2 h-full' : 
-                    'h-[200px]'
-                  }`}
-                  onClick={() => window.open(img, '_blank')}
+        {/* Menu */}
+        {isOwner && (
+          <div className="relative flex-shrink-0 ml-2">
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className="p-2 hover:bg-slate-700 rounded-full transition-colors"
+            >
+              <MoreHorizontal className="w-5 h-5 text-gray-400" />
+            </button>
+            
+            {showMenu && (
+              <>
+                <div 
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowMenu(false)}
                 />
-              ))}
-            </div>
-          )}
-
-          {/* Poll */}
-          {post.poll && (
-            <div className="mb-3 border border-gray-200 rounded-2xl p-4">
-              <p className="font-semibold mb-3">{post.poll.question}</p>
-              {post.poll.options.map((option, idx) => (
-                <button
-                  key={idx}
-                  className="w-full mb-2 p-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-left font-medium"
-                >
-                  {option.text}
-                </button>
-              ))}
-              <p className="text-sm text-gray-500 mt-2">
-                {post.poll.options.reduce((sum, opt) => sum + (opt.votes?.length || 0), 0)} votes
-              </p>
-            </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="flex items-center justify-between max-w-md mt-3">
-            <button
-              onClick={() => setShowComments(!showComments)}
-              className="flex items-center space-x-2 text-gray-500 hover:text-blue-500 transition-colors group"
-            >
-              <div className="p-2 rounded-full group-hover:bg-blue-50">
-                <MessageCircle className="w-5 h-5" />
-              </div>
-              <span className="text-sm">{comments.length}</span>
-            </button>
-
-            <button
-              onClick={handleRetweet}
-              className={`flex items-center space-x-2 transition-colors group ${
-                isRetweeted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'
-              }`}
-            >
-              <div className={`p-2 rounded-full ${
-                isRetweeted ? 'bg-green-50' : 'group-hover:bg-green-50'
-              }`}>
-                <Repeat2 className="w-5 h-5" />
-              </div>
-              <span className="text-sm">{retweetCount}</span>
-            </button>
-
-            <button
-              onClick={handleLike}
-              className={`flex items-center space-x-2 transition-colors group ${
-                isLiked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'
-              }`}
-            >
-              <div className={`p-2 rounded-full ${
-                isLiked ? 'bg-red-50' : 'group-hover:bg-red-50'
-              }`}>
-                <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
-              </div>
-              <span className="text-sm">{likesCount}</span>
-            </button>
-
-            <button className="flex items-center space-x-2 text-gray-500 hover:text-blue-500 transition-colors group">
-              <div className="p-2 rounded-full group-hover:bg-blue-50">
-                <Bookmark className="w-5 h-5" />
-              </div>
-            </button>
-
-            <button className="flex items-center space-x-2 text-gray-500 hover:text-blue-500 transition-colors group">
-              <div className="p-2 rounded-full group-hover:bg-blue-50">
-                <Share className="w-5 h-5" />
-              </div>
-            </button>
+                <div className="absolute right-0 mt-1 bg-slate-800 rounded-lg shadow-lg border border-slate-700 py-1 z-20 min-w-[150px]">
+                  <button
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="w-full px-4 py-2 text-left text-red-400 hover:bg-slate-700 flex items-center space-x-2 disabled:opacity-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>{isDeleting ? 'Deleting...' : 'Delete Post'}</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
+        )}
+      </div>
 
-          {/* Comments Section */}
-          {showComments && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <form onSubmit={handleComment} className="mb-4">
-                <div className="flex space-x-2">
-                  <img
-                    src={currentUser?.profilePicture || '/default-avatar.png'}
-                    alt="You"
-                    className="w-10 h-10 rounded-full flex-shrink-0 object-cover"
-                  />
-                  <div className="flex-1 flex space-x-2">
-                    <input
-                      type="text"
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      placeholder="Post your reply"
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:border-blue-500"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!comment.trim()}
-                      className="px-6 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                    >
-                      Reply
-                    </button>
-                  </div>
-                </div>
-              </form>
+      {/* Content */}
+      <div className="ml-0 md:ml-[60px]">
+        {post.description && (
+          <p className="text-gray-100 mb-4 whitespace-pre-wrap break-words text-lg">
+            {post.description}
+          </p>
+        )}
 
-              {comments.length > 0 && (
-                <div className="space-y-3">
-                  {comments.map((c, idx) => (
-                    <div key={idx} className="flex space-x-3">
-                      <img
-                        src={c.user?.profilePicture || '/default-avatar.png'}
-                        alt={c.user?.username}
-                        className="w-10 h-10 rounded-full flex-shrink-0 object-cover"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="bg-gray-100 rounded-2xl px-4 py-2">
-                          <p className="font-semibold text-sm">{c.user?.name}</p>
-                          <p className="text-gray-900 break-words">{c.text}</p>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1 ml-4">
-                          {formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+        {/* Image */}
+        {post.image && (
+          <div className="mb-4 rounded-2xl overflow-hidden">
+            <img
+              src={post.image}
+              alt="Post"
+              className="w-full max-h-[500px] object-cover cursor-pointer"
+              onClick={() => window.open(post.image, '_blank')}
+            />
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex items-center justify-between max-w-md mt-4">
+          <button
+            onClick={() => setShowComments(!showComments)}
+            className="flex items-center space-x-2 text-gray-400 hover:text-blue-400 transition-colors group"
+          >
+            <div className="p-2 rounded-full group-hover:bg-blue-500/10">
+              <MessageCircle className="w-5 h-5" />
             </div>
-          )}
+            <span className="text-sm">{comments.length}</span>
+          </button>
+
+          <button
+            onClick={handleLike}
+            className={`flex items-center space-x-2 transition-colors group ${
+              isLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-500'
+            }`}
+          >
+            <div className={`p-2 rounded-full ${
+              isLiked ? 'bg-red-500/10' : 'group-hover:bg-red-500/10'
+            }`}>
+              <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+            </div>
+            <span className="text-sm">{likesCount}</span>
+          </button>
+
+          <button className="flex items-center space-x-2 text-gray-400 hover:text-green-400 transition-colors group">
+            <div className="p-2 rounded-full group-hover:bg-green-500/10">
+              <Repeat2 className="w-5 h-5" />
+            </div>
+          </button>
+
+          <button className="flex items-center space-x-2 text-gray-400 hover:text-blue-400 transition-colors group">
+            <div className="p-2 rounded-full group-hover:bg-blue-500/10">
+              <Share className="w-5 h-5" />
+            </div>
+          </button>
         </div>
+
+        {/* Comments Section */}
+        {showComments && (
+          <div className="mt-6 pt-4 border-t border-slate-700">
+            <form onSubmit={handleComment} className="mb-4">
+              <div className="flex space-x-2">
+                <img
+                  src={currentUser?.profileImage || dp}
+                  alt="You"
+                  className="w-10 h-10 rounded-full flex-shrink-0 object-cover border-2 border-purple-500"
+                />
+                <div className="flex-1 flex space-x-2">
+                  <input
+                    type="text"
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    placeholder="Post your reply"
+                    className="flex-1 px-4 py-2 bg-slate-700 border border-slate-600 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!comment.trim()}
+                    className="px-6 py-2 bg-purple-600 text-white rounded-full hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                  >
+                    Reply
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            {comments.length > 0 && (
+              <div className="space-y-4">
+                {comments.map((c, idx) => (
+                  <div key={idx} className="flex space-x-3">
+                    <img
+                      src={c.user?.profileImage || dp}
+                      alt={c.user?.userName}
+                      className="w-10 h-10 rounded-full flex-shrink-0 object-cover border-2 border-purple-500"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="bg-slate-700 rounded-2xl px-4 py-3">
+                        <p className="font-semibold text-sm text-white">
+                          {c.user?.firstName && c.user?.lastName 
+                            ? `${c.user.firstName} ${c.user.lastName}` 
+                            : c.user?.userName || 'User'}
+                        </p>
+                        <p className="text-gray-100 break-words mt-1">{c.content}</p>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1 ml-4">
+                        {c.createdAt ? formatDistanceToNow(new Date(c.createdAt), { addSuffix: true }) : 'Just now'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

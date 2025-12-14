@@ -4,7 +4,8 @@ import io from 'socket.io-client';
 import { useCall } from '../../context/CallContext';
 import VideoCall from '../VideoCall';
 
-const socket = io('/', {
+// ✅ FIXED: Correct socket URL - backend ka URL use karo
+const socket = io('http://localhost:8000', {
   withCredentials: true,
   transports: ['websocket', 'polling']
 });
@@ -51,23 +52,35 @@ function ChatWindow() {
 
   useEffect(() => {
     if (!token || !userId) {
-      console.error("No auth data");
+      console.error("❌ No auth data - token:", !!token, "userId:", !!userId);
       addNotification("Please login to use chat");
       return;
     }
 
+    console.log("🔌 Attempting socket connection...");
+    console.log("📍 Backend URL: http://localhost:8000");
+    console.log("👤 User ID:", userId);
+
     const onConnect = () => {
-      console.log('✅ Connected');
+      console.log('✅ Socket Connected to backend:', socket.id);
       setConnectionStatus('connected');
       socket.emit('join', { token, email, userId });
+      console.log('📤 Join event emitted');
     };
 
-    const onDisconnect = () => {
+    const onDisconnect = (reason) => {
+      console.log('❌ Socket Disconnected:', reason);
       setConnectionStatus('disconnected');
-      addNotification('Reconnecting...');
+      addNotification('Disconnected. Reconnecting...');
+    };
+
+    const onConnectError = (error) => {
+      console.error('❌ Socket Connection Error:', error.message);
+      setConnectionStatus('disconnected');
     };
 
     const onMessage = (msg) => {
+      console.log('📨 Message received:', msg);
       const newMsg = { 
         ...msg, 
         timestamp: msg.timestamp || new Date().toISOString(), 
@@ -94,17 +107,23 @@ function ChatWindow() {
 
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
+    socket.on('connect_error', onConnectError);
     socket.on('message', onMessage);
     socket.on('onlineUsers', onOnlineUsers);
     socket.on('typing', onTyping);
 
     if (!socket.connected) {
+      console.log('🔄 Manually connecting socket...');
       socket.connect();
+    } else {
+      console.log('✅ Socket already connected');
+      onConnect(); // Trigger connect handler if already connected
     }
 
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
+      socket.off('connect_error', onConnectError);
       socket.off('message', onMessage);
       socket.off('onlineUsers', onOnlineUsers);
       socket.off('typing', onTyping);

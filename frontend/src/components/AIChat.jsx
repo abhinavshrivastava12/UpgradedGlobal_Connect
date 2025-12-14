@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Send, Bot, User, Minimize2 } from "lucide-react";
+import axios from "axios";
 
 function AIChat() {
   const [messages, setMessages] = useState([
@@ -37,22 +38,31 @@ function AIChat() {
 
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch("/api/ai/get-res", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        credentials: 'include',
-        body: JSON.stringify({ code: currentInput }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
+      
+      if (!token) {
+        throw new Error('Please login first');
       }
 
-      const data = await res.json();
-      const aiText = data?.reply || "Sorry, I couldn't respond.";
+      console.log('Sending AI request:', currentInput);
+
+      const res = await axios.post("/api/ai/get-res", 
+        { code: currentInput },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          withCredentials: true
+        }
+      );
+
+      console.log('AI Response:', res.data);
+
+      if (!res.data || !res.data.reply) {
+        throw new Error('Invalid response from AI service');
+      }
+
+      const aiText = res.data.reply;
       setIsTyping(false);
 
       const words = aiText.split(" ");
@@ -79,14 +89,28 @@ function AIChat() {
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
     } catch (error) {
-      console.error("Error sending message:", error);
+      console.error("AI Error:", error);
       setIsTyping(false);
+      
+      let errorMessage = "Sorry, I couldn't respond. ";
+      
+      if (error.response?.status === 401) {
+        errorMessage += "Please login first.";
+      } else if (error.response?.status === 429) {
+        errorMessage += "AI quota exceeded. Please try again in a few minutes.";
+      } else if (error.response?.status === 503) {
+        errorMessage += "AI service is not configured. Please contact admin.";
+      } else if (error.message) {
+        errorMessage += error.message;
+      } else {
+        errorMessage += "Please try again.";
+      }
       
       setMessages((prev) => [
         ...prev,
         { 
           from: "ai", 
-          text: "Sorry, I couldn't respond. Please try again.", 
+          text: errorMessage, 
           id: Date.now() 
         }
       ]);

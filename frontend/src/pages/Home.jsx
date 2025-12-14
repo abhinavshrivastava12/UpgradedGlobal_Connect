@@ -76,7 +76,7 @@ function Home() {
         withCredentials: true,
       });
       
-      const users = Array.isArray(result.data) ? result.data.slice(0, 5) : []; // Show top 5
+      const users = Array.isArray(result.data) ? result.data.slice(0, 5) : [];
       setSuggestedUser(users);
     } catch (error) {
       console.error("Error fetching suggested users:", error);
@@ -207,14 +207,27 @@ function Home() {
           </button>
         </div>
 
-        {/* Posts Feed */}
+        {/* Posts Feed - FIXED */}
         <div className="space-y-4">
           {postData && Array.isArray(postData) && postData.length > 0 ? (
-            postData.map((post) => (
-              <div key={post._id} className="rounded-2xl overflow-hidden">
-                <Post {...post} />
-              </div>
-            ))
+            postData.map((post) => {
+              // ✅ FIXED: Validate post data before rendering
+              if (!post || !post._id) {
+                console.warn('Skipping invalid post:', post);
+                return null;
+              }
+              return (
+                <div key={post._id} className="bg-gradient-to-br from-[#1e293b] to-[#334155] rounded-2xl overflow-hidden border border-slate-700">
+                  <Post 
+                    post={post}
+                    currentUser={userData}
+                    onDelete={(postId) => {
+                      getPost(); // Refresh posts after delete
+                    }}
+                  />
+                </div>
+              );
+            })
           ) : (
             <div className="bg-gradient-to-br from-[#1e293b] to-[#334155] rounded-2xl p-8 text-center border border-slate-700">
               <div className="text-6xl mb-4">📭</div>
