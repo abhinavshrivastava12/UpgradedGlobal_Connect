@@ -1,102 +1,155 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
 const userSchema = new mongoose.Schema({
-    firstName: {
-        type: String,
-        required: true,
-        trim: true
+  name: {
+    type: String,
+    required: [true, 'Name is required'],
+    trim: true
+  },
+  username: {
+    type: String,
+    required: [true, 'Username is required'],
+    unique: true,
+    trim: true,
+    lowercase: true,
+    minlength: [3, 'Username must be at least 3 characters']
+  },
+  email: {
+    type: String,
+    required: [true, 'Email is required'],
+    unique: true,
+    lowercase: true,
+    trim: true,
+    match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email']
+  },
+  password: {
+    type: String,
+    required: [true, 'Password is required'],
+    minlength: [6, 'Password must be at least 6 characters'],
+    select: false
+  },
+  profilePicture: {
+    type: String,
+    default: 'https://res.cloudinary.com/demo/image/upload/avatar-placeholder.png'
+  },
+  coverPhoto: {
+    type: String,
+    default: ''
+  },
+  bio: {
+    type: String,
+    maxlength: [160, 'Bio must be less than 160 characters'],
+    default: ''
+  },
+  location: {
+    type: String,
+    default: ''
+  },
+  website: {
+    type: String,
+    default: ''
+  },
+  dateOfBirth: {
+    type: Date
+  },
+  followers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  following: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  isVerified: {
+    type: Boolean,
+    default: false
+  },
+  isAdmin: {
+    type: Boolean,
+    default: false
+  },
+  bookmarks: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Post'
+  }],
+  notifications: [{
+    type: {
+      type: String,
+      enum: ['like', 'comment', 'follow', 'retweet', 'mention']
     },
-    lastName: {
-        type: String,
-        required: true,
-        trim: true
+    from: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
     },
-    userName: {
-        type: String,
-        required: true,
-        unique: true,
-        trim: true,
-        lowercase: true
+    post: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Post'
     },
-    email: {
-        type: String,
-        required: true,
-        unique: true,
-        trim: true,
-        lowercase: true
+    read: {
+      type: Boolean,
+      default: false
     },
-    password: {
-        type: String,
-        required: true
-    },
-    isEmailVerified: {
-        type: Boolean,
-        default: true
-    },
-    profileImage: {
-        type: String,
-        default: ""
-    },
-    coverImage: {
-        type: String,
-        default: ""
-    },
-    headline: {
-        type: String,
-        default: ""
-    },
-    bio: {
-        type: String,
-        default: ""
-    },
-    skills: [{
-        type: String,
-        trim: true
-    }],
-    education: [
-        {
-            college: { type: String, trim: true },
-            degree: { type: String, trim: true },
-            fieldOfStudy: { type: String, trim: true },
-            startYear: { type: Number },
-            endYear: { type: Number },
-            description: { type: String }
-        }
-    ],
-    experience: [
-        {
-            title: { type: String, trim: true },
-            company: { type: String, trim: true },
-            location: { type: String, trim: true },
-            startDate: { type: Date },
-            endDate: { type: Date },
-            current: { type: Boolean, default: false },
-            description: { type: String }
-        }
-    ],
-    location: {
-        type: String,
-        default: "India"
-    },
-    website: {
-        type: String,
-        default: ""
-    },
-    phoneNumber: {
-        type: String,
-        default: ""
-    },
-    gender: {
-        type: String,
-        enum: ["male", "female", "other", ""],
-        default: ""
-    },
-    // CRITICAL FIX: Add connection field
-    connection: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User"
-    }]
-}, { timestamps: true });
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  resetPasswordToken: String,
+  resetPasswordExpire: Date
+}, {
+  timestamps: true
+});
+
+// Indexes for better performance
+userSchema.index({ username: 1 });
+userSchema.index({ email: 1 });
+userSchema.index({ followers: 1 });
+userSchema.index({ following: 1 });
+
+// Hash password before saving
+userSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) {
+    return next();
+  }
+
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Method to compare passwords
+userSchema.methods.comparePassword = async function(candidatePassword) {
+  try {
+    return await bcrypt.compare(candidatePassword, this.password);
+  } catch (error) {
+    throw new Error(error);
+  }
+};
+
+// Method to get public profile
+userSchema.methods.getPublicProfile = function() {
+  return {
+    _id: this._id,
+    name: this.name,
+    username: this.username,
+    email: this.email,
+    profilePicture: this.profilePicture,
+    coverPhoto: this.coverPhoto,
+    bio: this.bio,
+    location: this.location,
+    website: this.website,
+    followers: this.followers,
+    following: this.following,
+    isVerified: this.isVerified,
+    createdAt: this.createdAt
+  };
+};
 
 const User = mongoose.model('User', userSchema);
+
 export default User;

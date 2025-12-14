@@ -10,88 +10,113 @@ function UserContext({ children }) {
   const [edit, setEdit] = useState(false);
   const [postData, setPostData] = useState([]); 
   const [profileData, setProfileData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const { serverUrl } = useContext(authDataContext);
   const navigate = useNavigate();
 
-  // Fetch Current User
   const getCurrentUser = async () => {
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        setUserData(null);
+        setLoading(false);
+        return;
+      }
+
       const config = {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        headers: { 'Authorization': `Bearer ${token}` },
         withCredentials: true
       };
       
-      const result = await axios.get(
-        `${serverUrl}/api/user/currentuser`,
-        config
-      );
+      const result = await axios.get(`/api/user/currentuser`, config);
       setUserData(result.data);
     } catch (error) {
       console.error("Current user error:", error);
-      setUserData(null);
+      if (error.response?.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('email');
+        setUserData(null);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Fetch Posts - FIXED: Handle direct array response
   const getPost = async () => {
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        setPostData([]);
+        return;
+      }
+
       const config = {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        headers: { 'Authorization': `Bearer ${token}` },
         withCredentials: true
       };
       
-      const result = await axios.get(
-        `${serverUrl}/api/post/getpost`,
-        config
-      );
-
-      // Backend returns direct array, not an object
+      const result = await axios.get(`/api/post/getpost`, config);
       const posts = Array.isArray(result.data) ? result.data : [];
       setPostData(posts);
-      console.log('Posts loaded:', posts.length);
-
+      console.log('✅ Posts loaded:', posts.length);
     } catch (error) {
       console.error("Fetch posts error:", error);
+      if (error.response?.status === 401) {
+        console.log("Unauthorized - clearing auth");
+        localStorage.removeItem('token');
+      }
       setPostData([]);
     }
   };
 
-  // Fetch Selected Profile
   const handleGetProfile = async (userName) => {
     try {
       const token = localStorage.getItem('token');
       const config = {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        headers: { 'Authorization': `Bearer ${token}` },
         withCredentials: true
       };
       
-      const result = await axios.get(
-        `${serverUrl}/api/user/profile/${userName}`,
-        config
-      );
+      const result = await axios.get(`/api/user/profile/${userName}`, config);
       setProfileData(result.data);
       navigate("/profile");
     } catch (error) {
       console.error("Profile error:", error);
+      alert("Failed to load profile");
     }
   };
 
   useEffect(() => {
     getCurrentUser();
-    getPost();
   }, []);
+
+  useEffect(() => {
+    if (userData) {
+      getPost();
+    }
+  }, [userData]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <userDataContext.Provider value={{
-      userData, setUserData,
-      edit, setEdit,
-      postData, setPostData,
+      userData, 
+      setUserData,
+      edit, 
+      setEdit,
+      postData, 
+      setPostData,
       getPost,
       handleGetProfile,
-      profileData, setProfileData,
+      profileData, 
+      setProfileData,
     }}>
       {children}
     </userDataContext.Provider>

@@ -1,331 +1,321 @@
-import React, { useState, useEffect, useRef, useContext } from 'react';
-import dp from "../assets/dp.webp";
-import moment from "moment";
-import { BiLike, BiSolidLike, BiDotsHorizontalRounded } from "react-icons/bi";
-import { FaRegCommentDots, FaRetweet } from "react-icons/fa";
-import { BsEmojiSmile } from "react-icons/bs";
-import { FiTrash2, FiEdit2, FiLink } from "react-icons/fi";
-import { MdOutlineShare } from "react-icons/md";
+import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { userDataContext } from '../context/UserContext';
-import io from "socket.io-client";
-import ConnectionButton from './ConnectionButton';
+import { Heart, MessageCircle, Repeat2, Share, Trash2, MoreHorizontal, Bookmark } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 
-const socket = io();
-
-function Post({ id, author, like = [], comment = [], description = "", image, createdAt }) {
-  const [more, setMore] = useState(false);
-  const { userData, getPost, handleGetProfile } = useContext(userDataContext);
-  const [likes, setLikes] = useState(Array.isArray(like) ? like : []);
-  const [comments, setComments] = useState(Array.isArray(comment) ? comment : []);
-  const [commentContent, setCommentContent] = useState("");
-  const [showComment, setShowComment] = useState(false);
-  const [showMoreOptions, setShowMoreOptions] = useState(false);
-  const [showShareOptions, setShowShareOptions] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+const Post = ({ post, currentUser, onDelete, onUpdate }) => {
+  const [isLiked, setIsLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState(0);
+  const [isRetweeted, setIsRetweeted] = useState(false);
+  const [retweetCount, setRetweetCount] = useState(0);
+  const [showComments, setShowComments] = useState(false);
+  const [comment, setComment] = useState('');
+  const [comments, setComments] = useState([]);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedDescription, setEditedDescription] = useState(description);
-
-  const moreOptionsRef = useRef(null);
-  const shareOptionsRef = useRef(null);
-
-  const emojis = ['👍', '❤️', '😂', '😮', '😢', '🔥', '🎉', '👏'];
-  const isAuthor = userData?._id === author?._id;
-  const token = localStorage.getItem('token');
+  const [showMenu, setShowMenu] = useState(false);
 
   useEffect(() => {
-    socket.on("likeUpdated", ({ postId, likes }) => {
-      if (postId === id) setLikes(Array.isArray(likes) ? likes : []);
-    });
-    socket.on("commentAdded", ({ postId, comments }) => {
-      if (postId === id) setComments(Array.isArray(comments) ? comments : []);
-    });
-    return () => {
-      socket.off("likeUpdated");
-      socket.off("commentAdded");
-    };
-  }, [id]);
+    if (post) {
+      setIsLiked(post.likes?.includes(currentUser?._id) || false);
+      setLikesCount(post.likes?.length || 0);
+      setIsRetweeted(post.retweets?.includes(currentUser?._id) || false);
+      setRetweetCount(post.retweets?.length || 0);
+      setComments(post.comments || []);
+    }
+  }, [post, currentUser]);
 
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (moreOptionsRef.current && !moreOptionsRef.current.contains(e.target)) setShowMoreOptions(false);
-      if (shareOptionsRef.current && !shareOptionsRef.current.contains(e.target)) setShowShareOptions(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  if (!post || !post._id) {
+    console.error('Invalid post data:', post);
+    return null;
+  }
 
   const handleLike = async () => {
     try {
-      await axios.get(`/api/post/like/${id}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-        withCredentials: true
-      });
+      const response = await axios.post(`/api/post/like/${post._id}`);
+      
+      if (response.data.success) {
+        setIsLiked(!isLiked);
+        setLikesCount(isLiked ? likesCount - 1 : likesCount + 1);
+      }
     } catch (error) {
-      console.error("Like error:", error);
-      alert("Failed to like post");
+      console.error('Like error:', error);
+      alert('Failed to like post');
+    }
+  };
+
+  const handleRetweet = async () => {
+    try {
+      const response = await axios.post(`/api/post/retweet/${post._id}`);
+      
+      if (response.data.success) {
+        setIsRetweeted(!isRetweeted);
+        setRetweetCount(isRetweeted ? retweetCount - 1 : retweetCount + 1);
+      }
+    } catch (error) {
+      console.error('Retweet error:', error);
+      alert('Failed to retweet');
     }
   };
 
   const handleComment = async (e) => {
     e.preventDefault();
-    if (!commentContent.trim()) return;
+    if (!comment.trim()) return;
+
     try {
-      await axios.post(`/api/post/comment/${id}`, 
-        { content: commentContent },
-        {
-          headers: { 'Authorization': `Bearer ${token}` },
-          withCredentials: true
-        }
-      );
-      setCommentContent("");
+      const response = await axios.post(`/api/post/comment/${post._id}`, {
+        text: comment.trim()
+      });
+
+      if (response.data.success) {
+        setComments([...comments, response.data.comment]);
+        setComment('');
+      }
     } catch (error) {
-      console.error("Comment error:", error);
-      alert("Failed to add comment");
+      console.error('Comment error:', error);
+      alert('Failed to comment');
     }
   };
 
-  const handleAddEmoji = (emoji) => { 
-    setCommentContent(prev => prev + emoji); 
-    setShowEmojiPicker(false); 
-  };
-
-  const handleDeletePost = async () => {
-    if (!isAuthor) return;
-    if (!window.confirm("Delete this post?")) return;
+  const handleDelete = async () => {
+    if (!window.confirm('Are you sure you want to delete this post?')) return;
     
     setIsDeleting(true);
     try {
-      await axios.delete(`/api/post/delete/${id}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-        withCredentials: true
-      });
-      getPost();
+      const response = await axios.delete(`/api/post/${post._id}`);
+      
+      if (response.data.success) {
+        if (onDelete) onDelete(post._id);
+      }
     } catch (error) {
-      console.error("Delete error:", error);
-      alert("Failed to delete");
+      console.error('Delete error:', error);
+      alert('Failed to delete post');
     } finally {
       setIsDeleting(false);
-      setShowMoreOptions(false);
+      setShowMenu(false);
     }
   };
 
-  const handleRepost = async () => {
-    try {
-      await axios.post(`/api/post/repost/${id}`, {}, {
-        headers: { 'Authorization': `Bearer ${token}` },
-        withCredentials: true
-      });
-      getPost();
-    } catch (error) {
-      console.error("Repost error:", error);
-      alert(error.response?.data?.message || "Failed to repost");
-    }
-  };
-
-  const handleShare = (platform) => {
-    const postUrl = `${window.location.origin}/post/${id}`;
-    const shareText = description?.slice(0, 100);
-    switch (platform) {
-      case 'copy': 
-        navigator.clipboard.writeText(postUrl); 
-        alert('Link copied!'); 
-        break;
-      case 'twitter': 
-        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(postUrl)}`, '_blank'); 
-        break;
-      case 'facebook': 
-        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(postUrl)}`, '_blank'); 
-        break;
-      default: 
-        break;
-    }
-    setShowShareOptions(false);
-  };
+  const isOwner = currentUser?._id === post.user?._id;
 
   return (
-    <div className="w-full bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-slate-700">
-      
-      {/* Header */}
-      <div className='flex justify-between items-start p-6 pb-4 bg-slate-800/50'>
-        <div className='flex gap-4 items-start cursor-pointer group' onClick={() => handleGetProfile(author?.userName)}>
-          <div className='w-12 h-12 rounded-full overflow-hidden border-2 border-purple-500 group-hover:border-purple-400 transition-colors shadow-sm'>
-            <img src={author?.profileImage || dp} alt="" className='h-full w-full object-cover' />
-          </div>
-          <div className="flex-1">
-            <div className='text-base font-semibold text-white hover:text-purple-400 transition-colors'>
-              {author?.firstName} {author?.lastName}
-            </div>
-            <div className='text-sm text-gray-300 mb-1'>{author?.headline}</div>
-            <div className='text-xs text-gray-400 flex items-center gap-2'>
-              {createdAt ? moment(createdAt).fromNow() : ''}
-              <span className="w-1 h-1 bg-gray-500 rounded-full"></span>
-              <span>🌐 Public</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {!isAuthor && <ConnectionButton userId={author?._id} />}
-          <div className="relative" ref={moreOptionsRef}>
-            <button className="p-2 rounded-full hover:bg-slate-700 transition-colors"
-                    onClick={e => { e.stopPropagation(); setShowMoreOptions(!showMoreOptions); }}>
-              <BiDotsHorizontalRounded className="w-5 h-5 text-gray-300" />
-            </button>
-            {showMoreOptions && (
-              <div className="absolute right-0 top-full mt-2 bg-slate-800 rounded-xl shadow-2xl border border-slate-700 py-2 w-48 z-50">
-                {isAuthor ? (
-                  <>
-                    <button className="w-full px-4 py-2 text-left hover:bg-slate-700 flex items-center gap-3 text-purple-400" 
-                            onClick={() => { setIsEditing(!isEditing); setShowMoreOptions(false); }}>
-                      <FiEdit2 className="w-4 h-4" /> Edit post
-                    </button>
-                    <button className="w-full px-4 py-2 text-left hover:bg-slate-700 flex items-center gap-3 text-red-400" 
-                            onClick={handleDeletePost} disabled={isDeleting}>
-                      <FiTrash2 className="w-4 h-4" /> Delete post
-                    </button>
-                  </>
-                ) : (
-                  <button className="w-full px-4 py-2 text-left hover:bg-slate-700 flex items-center gap-3 text-gray-300" 
-                          onClick={() => handleShare('copy')}>
-                    <FiLink className="w-4 h-4" /> Copy link
-                  </button>
-                )}
+    <div className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+      <div className="p-4">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-start space-x-3 flex-1 min-w-0">
+            <img
+              src={post.user?.profilePicture || '/default-avatar.png'}
+              alt={post.user?.username || 'User'}
+              className="w-12 h-12 rounded-full flex-shrink-0 object-cover"
+            />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center flex-wrap gap-2">
+                <span className="font-bold text-gray-900 truncate">
+                  {post.user?.name || 'Unknown User'}
+                </span>
+                <span className="text-gray-500 text-sm truncate">
+                  @{post.user?.username || 'unknown'}
+                </span>
+                <span className="text-gray-500 text-sm">·</span>
+                <span className="text-gray-500 text-sm flex-shrink-0">
+                  {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
+                </span>
               </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="px-6 pb-4">
-        {isEditing ? (
-          <textarea
-            className="w-full p-3 bg-slate-700 text-white rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
-            value={editedDescription}
-            onChange={(e) => setEditedDescription(e.target.value)}
-            rows={3}
-          />
-        ) : (
-          <div className={`text-gray-200 leading-relaxed ${!more && description?.length > 300 ? "max-h-20 overflow-hidden" : ""}`}>
-            {description}
-          </div>
-        )}
-        {description && description.length > 300 && !isEditing && (
-          <button className="text-purple-400 hover:text-purple-300 text-sm font-medium mt-2 hover:underline"
-                  onClick={() => setMore(!more)}>
-            {more ? "Show less" : "Show more"}
-          </button>
-        )}
-      </div>
-
-      {/* Image */}
-      {image && (
-        <div className="w-full max-h-96 overflow-hidden bg-slate-900">
-          <img src={image} alt="" className="w-full h-full object-cover hover:scale-105 transition-transform duration-500 cursor-pointer" />
-        </div>
-      )}
-
-      {/* Stats */}
-      <div className="flex justify-between items-center px-6 py-3 border-t border-slate-700 bg-slate-800/30">
-        <div className="flex items-center gap-2 text-gray-300 text-sm">
-          <div className="flex -space-x-1">
-            <div className="w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center border-2 border-slate-800">
-              <BiLike className="text-white w-3 h-3" />
             </div>
           </div>
-          <span className="hover:underline cursor-pointer">{likes.length}</span>
+
+          {/* Menu */}
+          {isOwner && (
+            <div className="relative flex-shrink-0 ml-2">
+              <button
+                onClick={() => setShowMenu(!showMenu)}
+                className="p-2 hover:bg-blue-50 rounded-full transition-colors"
+              >
+                <MoreHorizontal className="w-5 h-5 text-gray-500" />
+              </button>
+              
+              {showMenu && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowMenu(false)}
+                  />
+                  <div className="absolute right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20 min-w-[150px]">
+                    <button
+                      onClick={handleDelete}
+                      disabled={isDeleting}
+                      className="w-full px-4 py-2 text-left text-red-600 hover:bg-red-50 flex items-center space-x-2 disabled:opacity-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>{isDeleting ? 'Deleting...' : 'Delete Post'}</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-4 text-gray-300 text-sm">
-          <button className="hover:text-purple-400 hover:underline cursor-pointer transition-colors"
-                  onClick={() => setShowComment(!showComment)}>
-            {comments.length} comments
-          </button>
-        </div>
-      </div>
 
-      {/* Actions */}
-      <div className="flex justify-around items-center px-6 py-3 border-t border-slate-700 bg-slate-800/50">
-        {!likes.includes(userData?._id) ? (
-          <button className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-purple-500/20 text-gray-200 hover:text-purple-400 font-medium group"
-                  onClick={handleLike}>
-            <BiLike className="w-5 h-5 group-hover:scale-110 transition-transform" />
-            <span>Like</span>
-          </button>
-        ) : (
-          <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-500/20 text-purple-400 font-semibold"
-                  onClick={handleLike}>
-            <BiSolidLike className="w-5 h-5 animate-pulse" />
-            <span>Liked</span>
-          </button>
-        )}
+        {/* Content */}
+        <div className="ml-0 md:ml-[60px]">
+          {post.text && (
+            <p className="text-gray-900 mb-3 whitespace-pre-wrap break-words">
+              {post.text}
+            </p>
+          )}
 
-        <button className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-green-500/20 text-gray-200 hover:text-green-400 font-medium group"
-                onClick={() => setShowComment(!showComment)}>
-          <FaRegCommentDots className="w-5 h-5 group-hover:scale-110 transition-transform" />
-          <span>Comment</span>
-        </button>
+          {/* Images */}
+          {post.images && post.images.length > 0 && (
+            <div className={`grid gap-2 mb-3 rounded-2xl overflow-hidden ${
+              post.images.length === 1 ? 'grid-cols-1' : 
+              post.images.length === 2 ? 'grid-cols-2' : 
+              post.images.length === 3 ? 'grid-cols-2' : 
+              'grid-cols-2'
+            }`}>
+              {post.images.map((img, idx) => (
+                <img
+                  key={idx}
+                  src={img}
+                  alt={`Post ${idx + 1}`}
+                  className={`w-full object-cover cursor-pointer ${
+                    post.images.length === 1 ? 'max-h-[500px]' : 
+                    post.images.length === 3 && idx === 0 ? 'row-span-2 h-full' : 
+                    'h-[200px]'
+                  }`}
+                  onClick={() => window.open(img, '_blank')}
+                />
+              ))}
+            </div>
+          )}
 
-        <button className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-pink-500/20 text-gray-200 hover:text-pink-400 font-medium group"
-                onClick={handleRepost}>
-          <FaRetweet className="w-5 h-5 group-hover:scale-110 transition-transform" />
-          <span>Repost</span>
-        </button>
+          {/* Poll */}
+          {post.poll && (
+            <div className="mb-3 border border-gray-200 rounded-2xl p-4">
+              <p className="font-semibold mb-3">{post.poll.question}</p>
+              {post.poll.options.map((option, idx) => (
+                <button
+                  key={idx}
+                  className="w-full mb-2 p-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-left font-medium"
+                >
+                  {option.text}
+                </button>
+              ))}
+              <p className="text-sm text-gray-500 mt-2">
+                {post.poll.options.reduce((sum, opt) => sum + (opt.votes?.length || 0), 0)} votes
+              </p>
+            </div>
+          )}
 
-        <div className="relative" ref={shareOptionsRef}>
-          <button className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-yellow-500/20 text-gray-200 hover:text-yellow-400 font-medium group"
-                  onClick={() => setShowShareOptions(!showShareOptions)}>
-            <MdOutlineShare className="w-5 h-5 group-hover:scale-110 transition-transform" />
-            <span>Share</span>
-          </button>
-          {showShareOptions && (
-            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-slate-800 rounded-xl shadow-2xl border border-slate-700 py-2 w-48 z-50">
-              <button onClick={() => handleShare('copy')} className="w-full px-4 py-2 hover:bg-slate-700 flex items-center gap-3 text-gray-300">Copy Link</button>
-              <button onClick={() => handleShare('twitter')} className="w-full px-4 py-2 hover:bg-slate-700 flex items-center gap-3 text-blue-400">Twitter</button>
-              <button onClick={() => handleShare('facebook')} className="w-full px-4 py-2 hover:bg-slate-700 flex items-center gap-3 text-blue-600">Facebook</button>
+          {/* Action Buttons */}
+          <div className="flex items-center justify-between max-w-md mt-3">
+            <button
+              onClick={() => setShowComments(!showComments)}
+              className="flex items-center space-x-2 text-gray-500 hover:text-blue-500 transition-colors group"
+            >
+              <div className="p-2 rounded-full group-hover:bg-blue-50">
+                <MessageCircle className="w-5 h-5" />
+              </div>
+              <span className="text-sm">{comments.length}</span>
+            </button>
+
+            <button
+              onClick={handleRetweet}
+              className={`flex items-center space-x-2 transition-colors group ${
+                isRetweeted ? 'text-green-500' : 'text-gray-500 hover:text-green-500'
+              }`}
+            >
+              <div className={`p-2 rounded-full ${
+                isRetweeted ? 'bg-green-50' : 'group-hover:bg-green-50'
+              }`}>
+                <Repeat2 className="w-5 h-5" />
+              </div>
+              <span className="text-sm">{retweetCount}</span>
+            </button>
+
+            <button
+              onClick={handleLike}
+              className={`flex items-center space-x-2 transition-colors group ${
+                isLiked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'
+              }`}
+            >
+              <div className={`p-2 rounded-full ${
+                isLiked ? 'bg-red-50' : 'group-hover:bg-red-50'
+              }`}>
+                <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+              </div>
+              <span className="text-sm">{likesCount}</span>
+            </button>
+
+            <button className="flex items-center space-x-2 text-gray-500 hover:text-blue-500 transition-colors group">
+              <div className="p-2 rounded-full group-hover:bg-blue-50">
+                <Bookmark className="w-5 h-5" />
+              </div>
+            </button>
+
+            <button className="flex items-center space-x-2 text-gray-500 hover:text-blue-500 transition-colors group">
+              <div className="p-2 rounded-full group-hover:bg-blue-50">
+                <Share className="w-5 h-5" />
+              </div>
+            </button>
+          </div>
+
+          {/* Comments Section */}
+          {showComments && (
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <form onSubmit={handleComment} className="mb-4">
+                <div className="flex space-x-2">
+                  <img
+                    src={currentUser?.profilePicture || '/default-avatar.png'}
+                    alt="You"
+                    className="w-10 h-10 rounded-full flex-shrink-0 object-cover"
+                  />
+                  <div className="flex-1 flex space-x-2">
+                    <input
+                      type="text"
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      placeholder="Post your reply"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:border-blue-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!comment.trim()}
+                      className="px-6 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                    >
+                      Reply
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              {comments.length > 0 && (
+                <div className="space-y-3">
+                  {comments.map((c, idx) => (
+                    <div key={idx} className="flex space-x-3">
+                      <img
+                        src={c.user?.profilePicture || '/default-avatar.png'}
+                        alt={c.user?.username}
+                        className="w-10 h-10 rounded-full flex-shrink-0 object-cover"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="bg-gray-100 rounded-2xl px-4 py-2">
+                          <p className="font-semibold text-sm">{c.user?.name}</p>
+                          <p className="text-gray-900 break-words">{c.text}</p>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1 ml-4">
+                          {formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
-
-      {/* Comment Input */}
-      {showComment && (
-        <form onSubmit={handleComment} className="flex gap-2 items-center px-6 py-3 border-t border-slate-700 bg-slate-800/30">
-          <img src={userData?.profileImage || dp} alt="" className="w-10 h-10 rounded-full" />
-          <div className="flex-1 relative">
-            <input type="text" placeholder="Write a comment..." value={commentContent} 
-                   onChange={e => setCommentContent(e.target.value)}
-                   className="w-full border border-slate-600 bg-slate-700 text-white rounded-full py-2 px-4 pl-10 focus:outline-none focus:ring-1 focus:ring-purple-500" />
-            <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="absolute left-2 top-2 text-gray-400 hover:text-yellow-400">
-              <BsEmojiSmile />
-            </button>
-            {showEmojiPicker && (
-              <div className="absolute bottom-full left-0 mb-2 flex flex-wrap gap-1 bg-slate-800 border border-slate-700 rounded-lg p-2 shadow-xl z-50">
-                {emojis.map(e => <button key={e} type="button" onClick={() => handleAddEmoji(e)} className="p-1 hover:bg-slate-700 rounded">{e}</button>)}
-              </div>
-            )}
-          </div>
-          <button type="submit" className="bg-purple-600 text-white px-4 py-2 rounded-full hover:bg-purple-700 transition-colors">Post</button>
-        </form>
-      )}
-
-      {/* Comments List */}
-      {comments.length > 0 && showComment && (
-        <div className="px-6 pb-4 bg-slate-800/20">
-          {comments.map((com, idx) => (
-            <div key={idx} className="flex gap-3 items-start my-2">
-              <img src={com.user?.profileImage || dp} alt="" className="w-8 h-8 rounded-full" />
-              <div className="bg-slate-700 p-2 rounded-xl flex-1">
-                <div className="text-sm font-semibold text-white">{com.user?.firstName} {com.user?.lastName}</div>
-                <div className="text-sm text-gray-300">{com.content}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
-}
+};
 
 export default Post;

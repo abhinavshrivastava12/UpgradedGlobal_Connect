@@ -4,15 +4,17 @@ import './index.css';
 import App from './App.jsx';
 import { BrowserRouter } from 'react-router-dom';
 
-// Context imports (default exports, exact capitalization)
 import AuthContext from './context/AuthContext.jsx';
 import UserContext from './context/UserContext.jsx';
+import { CallProvider } from './context/CallContext.jsx';
 
 createRoot(document.getElementById('root')).render(
   <BrowserRouter>
     <AuthContext>
       <UserContext>
-        <App />
+        <CallProvider>
+          <App />
+        </CallProvider>
       </UserContext>
     </AuthContext>
   </BrowserRouter>

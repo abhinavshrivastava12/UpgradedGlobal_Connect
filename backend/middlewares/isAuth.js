@@ -1,56 +1,65 @@
-import jwt from "jsonwebtoken";
-import dotenv from "dotenv";
-dotenv.config();
+import jwt from 'jsonwebtoken';
+import User from '../models/user.model.js';
 
-const isAuth = async (req, res, next) => {
-    try {
-        let token = null;
-        
-        console.log("Auth middleware - Checking authentication");
-        console.log("Cookies:", req.cookies);
-        console.log("Authorization header:", req.headers.authorization);
-        
-        // Try to get token from cookies first
-        if (req.cookies && req.cookies.token) {
-            token = req.cookies.token;
-            console.log("Token found in cookies");
-        }
-        
-        // If no token in cookies, try Authorization header
-        if (!token && req.headers.authorization) {
-            const authHeader = req.headers.authorization;
-            if (authHeader.startsWith('Bearer ')) {
-                token = authHeader.substring(7);
-                console.log("Token found in Authorization header");
-            }
-        }
-        
-        if (!token) {
-            console.log("No token found in cookies or headers");
-            return res.status(401).json({ message: "No authentication token provided" });
-        }
-        
-        const verifyToken = jwt.verify(token, process.env.JWT_SECRET);
-        if (!verifyToken) {
-            return res.status(401).json({ message: "Invalid authentication token" });
-        }
-        
-        console.log("Token verified successfully for user:", verifyToken.userId);
-        req.userId = verifyToken.userId;
-        req.user = verifyToken;
-        next();
-    } catch (error) {
-        console.log("Auth middleware error:", error.message);
-        
-        if (error.name === 'JsonWebTokenError') {
-            return res.status(401).json({ message: "Invalid token format" });
-        }
-        if (error.name === 'TokenExpiredError') {
-            return res.status(401).json({ message: "Token has expired" });
-        }
-        
-        return res.status(500).json({ message: "Authentication error" });
+export const protect = async (req, res, next) => {
+  try {
+    let token;
+
+    // Check for token in Authorization header
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
     }
+    // Check for token in cookies
+    else if (req.cookies && req.cookies.token) {
+      token = req.cookies.token;
+    }
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized, no token'
+      });
+    }
+
+    try {
+      // Verify token
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+      // Get user from token
+      req.user = await User.findById(decoded.id).select('-password');
+
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+
+      next();
+    } catch (error) {
+      console.error('Token verification failed:', error.message);
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized, token failed'
+      });
+    }
+  } catch (error) {
+    console.error('Auth middleware error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error in authentication'
+    });
+  }
 };
 
-export default isAuth;
+// Optional: Admin middleware
+export const admin = (req, res, next) => {
+  if (req.user && req.user.isAdmin) {
+    next();
+  } else {
+    res.status(403).json({
+      success: false,
+      message: 'Not authorized as admin'
+    });
+  }
+};

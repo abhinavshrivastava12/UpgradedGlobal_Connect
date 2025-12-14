@@ -7,7 +7,7 @@ import {
   updateProfile,
   getUserStats,
 } from "../controllers/user.controllers.js";
-import isAuth from "../middlewares/isAuth.js";
+import isAuth, { admin } from "../middlewares/isAuth.js";
 import upload from "../middlewares/multer.js";
 
 const userRouter = express.Router();
