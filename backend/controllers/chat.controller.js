@@ -1,13 +1,9 @@
 import Message from "../models/Message.js";
 import { Types } from "mongoose";
 
-/**
- * GET /api/chat/history/:withUser?page=1&limit=30
- * Returns paginated DM history (both directions) with a specific user
- */
 export const getHistory = async (req, res) => {
   try {
-    const userId = req.userId; // From isAuth middleware
+    const userId = req.userId;
     const withUser = req.params.withUser;
     
     if (!userId || !withUser) {
@@ -18,10 +14,9 @@ export const getHistory = async (req, res) => {
     }
 
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);
-    const limit = Math.min(Math.max(parseInt(req.query.limit || "30", 10), 1), 100);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || "50", 10), 1), 100);
     const skip = (page - 1) * limit;
 
-    // Ensure we're working with valid ObjectIds
     let userObjectId, withUserObjectId;
     
     try {
@@ -43,18 +38,31 @@ export const getHistory = async (req, res) => {
 
     const [items, total] = await Promise.all([
       Message.find(filter)
+        .populate('from', 'firstName lastName userName profileImage')
+        .populate('to', 'firstName lastName userName profileImage')
         .sort({ timestamp: -1 })
         .skip(skip)
         .limit(limit)
-        .lean(), // Use lean() for better performance
+        .lean(),
       Message.countDocuments(filter)
     ]);
 
-    // Convert ObjectIds to strings for consistency with frontend
     const processedItems = items.reverse().map(item => ({
       ...item,
-      from: item.from.toString(),
-      to: item.to.toString(),
+      from: {
+        _id: item.from._id.toString(),
+        firstName: item.from.firstName,
+        lastName: item.from.lastName,
+        userName: item.from.userName,
+        profileImage: item.from.profileImage
+      },
+      to: {
+        _id: item.to._id.toString(),
+        firstName: item.to.firstName,
+        lastName: item.to.lastName,
+        userName: item.to.userName,
+        profileImage: item.to.profileImage
+      }
     }));
 
     res.json({
@@ -73,13 +81,9 @@ export const getHistory = async (req, res) => {
   }
 };
 
-/**
- * GET /api/chat/inbox
- * Returns latest message per conversation partner for current user
- */
 export const getInbox = async (req, res) => {
   try {
-    const userId = req.userId; // From isAuth middleware
+    const userId = req.userId;
 
     if (!userId) {
       return res.status(400).json({ 
@@ -135,19 +139,35 @@ export const getInbox = async (req, res) => {
           }
         }
       },
-      { $sort: { "lastMessage.timestamp": -1 } }
+      { $sort: { "lastMessage.timestamp": -1 } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "userInfo"
+        }
+      },
+      { $unwind: "$userInfo" }
     ];
 
     const rows = await Message.aggregate(pipeline);
     
-    // Process the results to convert ObjectIds to strings
     const processedRows = rows.map(row => ({
-      ...row,
       _id: row._id.toString(),
       lastMessage: {
         ...row.lastMessage,
         from: row.lastMessage.from.toString(),
         to: row.lastMessage.to.toString(),
+      },
+      unread: row.unread,
+      userInfo: {
+        _id: row.userInfo._id.toString(),
+        firstName: row.userInfo.firstName,
+        lastName: row.userInfo.lastName,
+        userName: row.userInfo.userName,
+        profileImage: row.userInfo.profileImage,
+        headline: row.userInfo.headline
       }
     }));
 
@@ -164,13 +184,9 @@ export const getInbox = async (req, res) => {
   }
 };
 
-/**
- * PATCH /api/chat/read/:withUser
- * Marks messages from :withUser to me as read
- */
 export const markRead = async (req, res) => {
   try {
-    const userId = req.userId; // From isAuth middleware
+    const userId = req.userId;
     const withUser = req.params.withUser;
 
     if (!userId || !withUser) {

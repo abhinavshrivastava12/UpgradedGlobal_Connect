@@ -5,13 +5,13 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import cookieParser from 'cookie-parser';
+import Message from './models/Message.js';
 
 dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
 
-// Socket.io setup
 const io = new Server(server, {
   cors: {
     origin: process.env.NODE_ENV === 'production' 
@@ -41,61 +41,141 @@ mongoose.connect(process.env.MONGODB_URL)
   .then(() => console.log('✅ MongoDB connected'))
   .catch((err) => console.error('❌ MongoDB connection error:', err));
 
-// Socket.io connection handling
+// Socket.io
 export const userSocketMap = new Map();
 
 io.on('connection', (socket) => {
   console.log('✅ User connected:', socket.id);
 
+  // User joins
   socket.on('join', ({ userId, email, token }) => {
     if (userId) {
       userSocketMap.set(userId, socket.id);
       socket.userId = userId;
+      socket.email = email;
       console.log('👤 User registered:', userId);
       
-      // Emit online users list
+      // Emit online users
       io.emit('onlineUsers', Array.from(userSocketMap.keys()));
-    }
-  });
-
-  socket.on('user-connected', (userId) => {
-    if (userId) {
-      userSocketMap.set(userId, socket.id);
-      socket.userId = userId;
       io.emit('active-users', Array.from(userSocketMap.keys()));
-      console.log('👤 User connected:', userId);
     }
   });
 
-  socket.on('sendMessage', (data) => {
-    console.log('📨 Sending message:', data);
-    const recipientSocketId = userSocketMap.get(data.to);
-    if (recipientSocketId) {
-      io.to(recipientSocketId).emit('message', {
-        from: data.userId,
-        user: data.user || data.userId,
+  // Send message
+  socket.on('sendMessage', async (data) => {
+    console.log('📨 Message received:', data);
+    
+    try {
+      // Save to database
+      const message = await Message.create({
+        from: data.from,
+        to: data.to,
         text: data.text,
-        timestamp: data.timestamp || new Date().toISOString(),
-        id: data.id || Date.now()
+        image: data.image || null,
+        timestamp: new Date()
+      });
+
+      // Populate sender info
+      await message.populate('from', 'firstName lastName userName profileImage');
+      await message.populate('to', 'firstName lastName userName profileImage');
+
+      const messageData = {
+        _id: message._id.toString(),
+        from: {
+          _id: message.from._id.toString(),
+          firstName: message.from.firstName,
+          lastName: message.from.lastName,
+          userName: message.from.userName,
+          profileImage: message.from.profileImage
+        },
+        to: {
+          _id: message.to._id.toString(),
+          firstName: message.to.firstName,
+          lastName: message.to.lastName,
+          userName: message.to.userName,
+          profileImage: message.to.profileImage
+        },
+        text: message.text,
+        image: message.image,
+        timestamp: message.timestamp,
+        readAt: message.readAt
+      };
+
+      // Send to recipient
+      const recipientSocketId = userSocketMap.get(data.to);
+      if (recipientSocketId) {
+        io.to(recipientSocketId).emit('receiveMessage', messageData);
+      }
+
+      // Send back to sender
+      socket.emit('messageSent', messageData);
+
+    } catch (error) {
+      console.error('Message save error:', error);
+      socket.emit('messageError', { error: 'Failed to send message' });
+    }
+  });
+
+  // Typing indicator
+  socket.on('typing', (recipientId) => {
+    const recipientSocketId = userSocketMap.get(recipientId);
+    if (recipientSocketId && socket.userId) {
+      io.to(recipientSocketId).emit('userTyping', {
+        userId: socket.userId,
+        email: socket.email
       });
     }
   });
 
-  socket.on('send-message', (data) => {
-    console.log('📨 Sending message (v2):', data);
-    const recipientSocketId = userSocketMap.get(data.recipientId);
-    if (recipientSocketId) {
-      io.to(recipientSocketId).emit('receive-message', data);
-    }
-  });
-
-  socket.on('typing', (recipientId) => {
+  // Stop typing
+  socket.on('stopTyping', (recipientId) => {
     const recipientSocketId = userSocketMap.get(recipientId);
     if (recipientSocketId && socket.userId) {
-      io.to(recipientSocketId).emit('typing', socket.userId);
+      io.to(recipientSocketId).emit('userStoppedTyping', socket.userId);
     }
   });
 
+  // Video call events
+  socket.on('callUser', (data) => {
+    const recipientSocketId = userSocketMap.get(data.userToCall);
+    if (recipientSocketId) {
+      io.to(recipientSocketId).emit('incomingCall', {
+        signal: data.signalData,
+        from: data.from,
+        callerInfo: data.callerInfo
+      });
+    }
+  });
+
+  socket.on('answerCall', (data) => {
+    const callerSocketId = userSocketMap.get(data.to);
+    if (callerSocketId) {
+      io.to(callerSocketId).emit('callAccepted', {
+        signal: data.signal,
+        from: socket.userId
+      });
+    }
+  });
+
+  socket.on('rejectCall', (data) => {
+    const callerSocketId = userSocketMap.get(data.to);
+    if (callerSocketId) {
+      io.to(callerSocketId).emit('callRejected', {
+        from: socket.userId
+      });
+    }
+  });
+
+  socket.on('endCall', (data) => {
+    const recipientSocketId = userSocketMap.get(data.to);
+    if (recipientSocketId) {
+      io.to(recipientSocketId).emit('callEnded', {
+        from: socket.userId
+      });
+    }
+  });
+
+  // Posts
   socket.on('new-post', (post) => {
     socket.broadcast.emit('post-created', post);
   });
@@ -107,31 +187,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Video call events
-  socket.on('callUser', (data) => {
-    const recipientSocketId = userSocketMap.get(data.userToCall);
-    if (recipientSocketId) {
-      io.to(recipientSocketId).emit('callUser', {
-        signal: data.signalData,
-        from: data.from
-      });
-    }
-  });
-
-  socket.on('answerCall', (data) => {
-    const callerSocketId = userSocketMap.get(data.to);
-    if (callerSocketId) {
-      io.to(callerSocketId).emit('callAccepted', data.signal);
-    }
-  });
-
-  socket.on('endCall', (data) => {
-    const recipientSocketId = userSocketMap.get(data.to);
-    if (recipientSocketId) {
-      io.to(recipientSocketId).emit('callEnded');
-    }
-  });
-
+  // Disconnect
   socket.on('disconnect', () => {
     if (socket.userId) {
       userSocketMap.delete(socket.userId);

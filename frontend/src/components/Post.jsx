@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Heart, MessageCircle, Repeat2, Share, Trash2, MoreHorizontal } from 'lucide-react';
+import { Heart, MessageCircle, Repeat2, Share2, Trash2, MoreHorizontal, X } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import dp from '../assets/dp.webp';
 
 const Post = ({ post, currentUser, onDelete }) => {
-  // ✅ FIXED: Early validation
   if (!post || !post._id) {
     console.error('Invalid post data:', post);
     return null;
@@ -18,6 +17,10 @@ const Post = ({ post, currentUser, onDelete }) => {
   const [comments, setComments] = useState([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [isReposting, setIsReposting] = useState(false);
+  const [showRepostModal, setShowRepostModal] = useState(false);
+  const [repostText, setRepostText] = useState('');
+  const [showShareMenu, setShowShareMenu] = useState(false);
 
   useEffect(() => {
     if (post) {
@@ -29,7 +32,13 @@ const Post = ({ post, currentUser, onDelete }) => {
 
   const handleLike = async () => {
     try {
-      const response = await axios.post(`/api/post/like/${post._id}`);
+      const token = localStorage.getItem('token');
+      const config = {
+        headers: { 'Authorization': `Bearer ${token}` },
+        withCredentials: true
+      };
+
+      const response = await axios.post(`/api/post/like/${post._id}`, {}, config);
       
       if (response.data) {
         setIsLiked(!isLiked);
@@ -46,9 +55,15 @@ const Post = ({ post, currentUser, onDelete }) => {
     if (!comment.trim()) return;
 
     try {
+      const token = localStorage.getItem('token');
+      const config = {
+        headers: { 'Authorization': `Bearer ${token}` },
+        withCredentials: true
+      };
+
       const response = await axios.post(`/api/post/comment/${post._id}`, {
         content: comment.trim()
-      });
+      }, config);
 
       if (response.data) {
         setComments(response.data.comment || []);
@@ -60,12 +75,81 @@ const Post = ({ post, currentUser, onDelete }) => {
     }
   };
 
+  const handleRepost = async () => {
+    setIsReposting(true);
+    try {
+      const token = localStorage.getItem('token');
+      const config = {
+        headers: { 'Authorization': `Bearer ${token}` },
+        withCredentials: true
+      };
+
+      const response = await axios.post(`/api/post/repost/${post._id}`, {
+        description: repostText.trim() || `Reposted from @${post.author?.userName}`
+      }, config);
+
+      if (response.data) {
+        alert('Post reposted successfully!');
+        setShowRepostModal(false);
+        setRepostText('');
+        window.location.reload(); // Refresh to show new repost
+      }
+    } catch (error) {
+      console.error('Repost error:', error);
+      if (error.response?.data?.message === 'Already reposted') {
+        alert('You have already reposted this post');
+      } else {
+        alert('Failed to repost');
+      }
+    } finally {
+      setIsReposting(false);
+    }
+  };
+
+  const handleShare = (platform) => {
+    const postUrl = `${window.location.origin}/post/${post._id}`;
+    const text = post.description || 'Check out this post!';
+    
+    let shareUrl = '';
+    
+    switch(platform) {
+      case 'twitter':
+        shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(postUrl)}`;
+        break;
+      case 'facebook':
+        shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(postUrl)}`;
+        break;
+      case 'linkedin':
+        shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(postUrl)}`;
+        break;
+      case 'whatsapp':
+        shareUrl = `https://wa.me/?text=${encodeURIComponent(text + ' ' + postUrl)}`;
+        break;
+      case 'copy':
+        navigator.clipboard.writeText(postUrl);
+        alert('Link copied to clipboard!');
+        setShowShareMenu(false);
+        return;
+    }
+    
+    if (shareUrl) {
+      window.open(shareUrl, '_blank', 'width=600,height=400');
+      setShowShareMenu(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this post?')) return;
     
     setIsDeleting(true);
     try {
-      const response = await axios.delete(`/api/post/delete/${post._id}`);
+      const token = localStorage.getItem('token');
+      const config = {
+        headers: { 'Authorization': `Bearer ${token}` },
+        withCredentials: true
+      };
+
+      const response = await axios.delete(`/api/post/delete/${post._id}`, config);
       
       if (response.data) {
         if (onDelete) onDelete(post._id);
@@ -165,6 +249,22 @@ const Post = ({ post, currentUser, onDelete }) => {
           </div>
         )}
 
+        {/* Reposted Content */}
+        {post.repostOf && (
+          <div className="mb-4 border border-slate-600 rounded-xl p-4 bg-slate-800/50">
+            <div className="flex items-center gap-2 mb-2 text-gray-400 text-sm">
+              <Repeat2 className="w-4 h-4" />
+              <span>Reposted from @{post.repostOf.author?.userName}</span>
+            </div>
+            {post.repostOf.description && (
+              <p className="text-gray-300">{post.repostOf.description}</p>
+            )}
+            {post.repostOf.image && (
+              <img src={post.repostOf.image} alt="Repost" className="rounded-lg mt-2 max-h-60 object-cover" />
+            )}
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="flex items-center justify-between max-w-md mt-4">
           <button
@@ -175,6 +275,15 @@ const Post = ({ post, currentUser, onDelete }) => {
               <MessageCircle className="w-5 h-5" />
             </div>
             <span className="text-sm">{comments.length}</span>
+          </button>
+
+          <button
+            onClick={() => setShowRepostModal(true)}
+            className="flex items-center space-x-2 text-gray-400 hover:text-green-400 transition-colors group"
+          >
+            <div className="p-2 rounded-full group-hover:bg-green-500/10">
+              <Repeat2 className="w-5 h-5" />
+            </div>
           </button>
 
           <button
@@ -191,17 +300,32 @@ const Post = ({ post, currentUser, onDelete }) => {
             <span className="text-sm">{likesCount}</span>
           </button>
 
-          <button className="flex items-center space-x-2 text-gray-400 hover:text-green-400 transition-colors group">
-            <div className="p-2 rounded-full group-hover:bg-green-500/10">
-              <Repeat2 className="w-5 h-5" />
-            </div>
-          </button>
+          <div className="relative">
+            <button 
+              onClick={() => setShowShareMenu(!showShareMenu)}
+              className="flex items-center space-x-2 text-gray-400 hover:text-blue-400 transition-colors group"
+            >
+              <div className="p-2 rounded-full group-hover:bg-blue-500/10">
+                <Share2 className="w-5 h-5" />
+              </div>
+            </button>
 
-          <button className="flex items-center space-x-2 text-gray-400 hover:text-blue-400 transition-colors group">
-            <div className="p-2 rounded-full group-hover:bg-blue-500/10">
-              <Share className="w-5 h-5" />
-            </div>
-          </button>
+            {showShareMenu && (
+              <>
+                <div 
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowShareMenu(false)}
+                />
+                <div className="absolute bottom-full right-0 mb-2 bg-slate-800 rounded-lg shadow-lg border border-slate-700 py-2 z-20 min-w-[200px]">
+                  <button onClick={() => handleShare('twitter')} className="w-full px-4 py-2 text-left text-white hover:bg-slate-700">Share on Twitter</button>
+                  <button onClick={() => handleShare('facebook')} className="w-full px-4 py-2 text-left text-white hover:bg-slate-700">Share on Facebook</button>
+                  <button onClick={() => handleShare('linkedin')} className="w-full px-4 py-2 text-left text-white hover:bg-slate-700">Share on LinkedIn</button>
+                  <button onClick={() => handleShare('whatsapp')} className="w-full px-4 py-2 text-left text-white hover:bg-slate-700">Share on WhatsApp</button>
+                  <button onClick={() => handleShare('copy')} className="w-full px-4 py-2 text-left text-white hover:bg-slate-700">Copy Link</button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Comments Section */}
@@ -262,6 +386,61 @@ const Post = ({ post, currentUser, onDelete }) => {
           </div>
         )}
       </div>
+
+      {/* Repost Modal */}
+      {showRepostModal && (
+        <>
+          <div 
+            className="fixed inset-0 bg-black/60 z-40"
+            onClick={() => setShowRepostModal(false)}
+          />
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-slate-800 rounded-2xl p-6 z-50 w-[90%] max-w-md border border-slate-700">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-white">Repost</h3>
+              <button
+                onClick={() => setShowRepostModal(false)}
+                className="p-2 hover:bg-slate-700 rounded-full"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            
+            <textarea
+              value={repostText}
+              onChange={(e) => setRepostText(e.target.value)}
+              placeholder="Add a comment (optional)"
+              className="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+              rows={3}
+            />
+            
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={() => setShowRepostModal(false)}
+                className="flex-1 px-4 py-2 border border-slate-600 text-gray-300 rounded-lg hover:bg-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRepost}
+                disabled={isReposting}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isReposting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Reposting...
+                  </>
+                ) : (
+                  <>
+                    <Repeat2 className="w-4 h-4" />
+                    Repost
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

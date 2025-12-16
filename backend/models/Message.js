@@ -1,12 +1,12 @@
 import mongoose from 'mongoose';
 
 const messageSchema = new mongoose.Schema({
-  conversation: {
+  from: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Conversation',
+    ref: 'User',
     required: true
   },
-  sender: {
+  to: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
@@ -19,21 +19,21 @@ const messageSchema = new mongoose.Schema({
     type: String,
     default: null
   },
-  read: {
-    type: Boolean,
-    default: false
-  },
   readAt: {
     type: Date,
     default: null
+  },
+  timestamp: {
+    type: Date,
+    default: Date.now
   }
 }, {
   timestamps: true
 });
 
-// Index for faster queries
-messageSchema.index({ conversation: 1, createdAt: -1 });
-messageSchema.index({ sender: 1 });
+// Indexes for faster queries
+messageSchema.index({ from: 1, to: 1, timestamp: -1 });
+messageSchema.index({ readAt: 1 });
 
 const Message = mongoose.model('Message', messageSchema);
 
