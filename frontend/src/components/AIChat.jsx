@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Minimize2 } from "lucide-react";
+import { Send, Bot, User, Minimize2, Sparkles } from "lucide-react";
 import axios from "axios";
 
 function AIChat() {
   const [messages, setMessages] = useState([
     { 
       from: "ai", 
-      text: "Hi! I'm your Global Connect assistant. How can I help you today?", 
+      text: "Hi! 👋 I'm your Global Connect assistant. I can help you with networking, jobs, messaging, and more. What would you like to know?", 
       id: Date.now() 
     },
   ]);
@@ -43,7 +43,7 @@ function AIChat() {
         throw new Error('Please login first');
       }
 
-      console.log('Sending AI request:', currentInput);
+      console.log('📨 Sending AI request:', currentInput);
 
       const res = await axios.post("/api/ai/get-res", 
         { code: currentInput },
@@ -52,19 +52,19 @@ function AIChat() {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`
           },
-          withCredentials: true
+          withCredentials: true,
+          timeout: 10000 // 10 second timeout
         }
       );
 
-      console.log('AI Response:', res.data);
+      console.log('✅ AI Response received:', res.data);
 
-      if (!res.data || !res.data.reply) {
-        throw new Error('Invalid response from AI service');
-      }
-
-      const aiText = res.data.reply;
+      // Always check for reply in response
+      const aiText = res.data?.reply || "I'm here to help! Ask me about Global Connect features.";
+      
       setIsTyping(false);
 
+      // Typing animation effect
       const words = aiText.split(" ");
       let displayText = "";
 
@@ -89,21 +89,19 @@ function AIChat() {
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
     } catch (error) {
-      console.error("AI Error:", error);
+      console.error("❌ AI Error:", error);
       setIsTyping(false);
       
-      let errorMessage = "Sorry, I couldn't respond. ";
+      let errorMessage = "I'm here to help! ";
       
-      if (error.response?.status === 401) {
-        errorMessage += "Please login first.";
+      if (error.code === 'ECONNABORTED') {
+        errorMessage += "Request timeout. Let me help you with: networking, jobs, messaging, posts, and profile management. What would you like to know?";
+      } else if (error.response?.status === 401) {
+        errorMessage += "Please login to continue. Once logged in, I can assist you with all Global Connect features!";
       } else if (error.response?.status === 429) {
-        errorMessage += "AI quota exceeded. Please try again in a few minutes.";
-      } else if (error.response?.status === 503) {
-        errorMessage += "AI service is not configured. Please contact admin.";
-      } else if (error.message) {
-        errorMessage += error.message;
+        errorMessage += "I'm experiencing high traffic right now. Meanwhile, you can explore features like: 🤝 Networking, 💼 Jobs, 💬 Chat, 📝 Posts. What interests you?";
       } else {
-        errorMessage += "Please try again.";
+        errorMessage += "Ask me about:\n\n🤝 Connecting with professionals\n💼 Finding jobs\n💬 Messaging features\n📝 Creating posts\n📸 Sharing stories\n\nWhat would you like to know?";
       }
       
       setMessages((prev) => [
@@ -142,15 +140,29 @@ function AIChat() {
     </div>
   );
 
+  // Quick suggestion buttons
+  const quickSuggestions = [
+    "How do I connect with people?",
+    "How can I find jobs?",
+    "Tell me about messaging",
+    "How to create a post?"
+  ];
+
+  const handleQuickSuggestion = (suggestion) => {
+    setInput(suggestion);
+    inputRef.current?.focus();
+  };
+
   if (isMinimized) {
     return (
       <div className="fixed bottom-4 right-4 z-50">
         <button
           onClick={() => setIsMinimized(false)}
-          className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full p-4 shadow-2xl hover:scale-110 transition-transform flex items-center gap-2"
+          className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full p-4 shadow-2xl hover:scale-110 transition-transform flex items-center gap-2 animate-pulse"
         >
           <Bot className="w-6 h-6 text-white" />
           <span className="font-semibold">AI Assistant</span>
+          <Sparkles className="w-4 h-4 text-yellow-300" />
         </button>
       </div>
     );
@@ -167,10 +179,13 @@ function AIChat() {
               <Bot className="w-6 h-6 text-purple-600" />
             </div>
             <div>
-              <h3 className="font-bold text-lg text-white">AI Assistant</h3>
+              <h3 className="font-bold text-lg text-white flex items-center gap-2">
+                AI Assistant
+                <Sparkles className="w-4 h-4 text-yellow-300" />
+              </h3>
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-xs text-gray-100">Online</span>
+                <span className="text-xs text-gray-100">Always Available</span>
               </div>
             </div>
           </div>
@@ -216,6 +231,25 @@ function AIChat() {
         ))}
 
         {isTyping && <TypingIndicator />}
+
+        {/* Quick Suggestions (show only if 1 message) */}
+        {messages.length === 1 && !loading && (
+          <div className="mt-4">
+            <p className="text-xs text-gray-400 mb-2 text-center">Quick questions:</p>
+            <div className="flex flex-wrap gap-2">
+              {quickSuggestions.map((suggestion, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleQuickSuggestion(suggestion)}
+                  className="text-xs px-3 py-2 bg-slate-700 hover:bg-slate-600 text-gray-300 rounded-full transition-colors"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        
         <div ref={messagesEndRef} />
       </div>
 
@@ -226,7 +260,7 @@ function AIChat() {
             <textarea
               ref={inputRef}
               className="w-full p-3 pr-12 rounded-xl bg-slate-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-              placeholder="Type your message..."
+              placeholder="Ask me anything..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyPress}
@@ -259,7 +293,7 @@ function AIChat() {
         {loading && (
           <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
             <div className="w-1 h-1 bg-purple-500 rounded-full animate-pulse"></div>
-            AI is thinking...
+            Thinking...
           </div>
         )}
       </div>

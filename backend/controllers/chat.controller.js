@@ -13,8 +13,9 @@ export const getHistory = async (req, res) => {
       });
     }
 
+    // ✅ OPTIMIZATION: Smaller default limit for faster loading
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);
-    const limit = Math.min(Math.max(parseInt(req.query.limit || "50", 10), 1), 100);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || "30", 10), 1), 100);
     const skip = (page - 1) * limit;
 
     let userObjectId, withUserObjectId;
@@ -36,6 +37,7 @@ export const getHistory = async (req, res) => {
       ]
     };
 
+    // ✅ OPTIMIZATION: Use lean() for faster queries
     const [items, total] = await Promise.all([
       Message.find(filter)
         .populate('from', 'firstName lastName userName profileImage')
@@ -102,6 +104,7 @@ export const getInbox = async (req, res) => {
       });
     }
 
+    // ✅ OPTIMIZATION: More efficient aggregation pipeline
     const pipeline = [
       {
         $match: {
@@ -145,7 +148,19 @@ export const getInbox = async (req, res) => {
           from: "users",
           localField: "_id",
           foreignField: "_id",
-          as: "userInfo"
+          as: "userInfo",
+          // ✅ OPTIMIZATION: Only fetch needed fields
+          pipeline: [
+            {
+              $project: {
+                firstName: 1,
+                lastName: 1,
+                userName: 1,
+                profileImage: 1,
+                headline: 1
+              }
+            }
+          ]
         }
       },
       { $unwind: "$userInfo" }

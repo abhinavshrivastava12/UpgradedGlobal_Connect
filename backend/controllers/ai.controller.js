@@ -11,40 +11,25 @@ export const getRes = async (req, res) => {
             });
         }
 
-        console.log('AI Request received:', code);
+        console.log('📨 AI Request received:', code);
 
-        // Check if AI is disabled
-        if (!process.env.GOOGLE_GEMINI_KEY) {
-            return res.json({ 
-                success: true,
-                reply: "AI service is currently unavailable. Please try again later or contact support for assistance." 
-            });
-        }
-
+        // Always try to get a response (either from AI or fallback)
         const response = await aiService(code);
         
-        console.log('AI Response generated:', response ? 'Success' : 'Failed');
+        console.log('✅ AI Response generated:', response ? 'Success' : 'Failed');
         
         res.json({ 
             success: true,
-            reply: response 
+            reply: response || "I'm here to help! Ask me about Global Connect features like networking, jobs, messaging, and more!"
         });
 
     } catch (error) {
-        console.error('AI Controller Error:', error);
+        console.error('❌ AI Controller Error:', error);
         
-        // Handle quota exceeded error
-        if (error.status === 429) {
-            return res.json({ 
-                success: true,
-                reply: "I'm currently experiencing high traffic. Please try again in a few minutes. Meanwhile, feel free to explore Global Connect features!" 
-            });
-        }
-        
-        // Fallback response
+        // Always return a helpful response, never fail completely
         res.json({ 
             success: true,
-            reply: "I apologize, but I'm having trouble responding right now. However, I can tell you that Global Connect offers professional networking, job opportunities, messaging, and more. How can I assist you today?" 
+            reply: "I'm here to help you with Global Connect! 🌟\n\nYou can ask me about:\n\n🤝 Networking & Connections\n💼 Finding Jobs\n💬 Messaging & Chat\n📝 Creating Posts\n📸 Sharing Stories\n📹 Video Calls\n👤 Profile Management\n\nWhat would you like to know?"
         });
     }
 };

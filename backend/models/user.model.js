@@ -1,57 +1,86 @@
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
 
 const userSchema = new mongoose.Schema({
-  name: {
+  firstName: {
     type: String,
-    required: [true, 'Name is required'],
+    required: true,
     trim: true
   },
-  username: {
+  lastName: {
     type: String,
-    required: [true, 'Username is required'],
+    required: true,
+    trim: true
+  },
+  userName: {
+    type: String,
+    required: true,
     unique: true,
-    trim: true,
     lowercase: true,
-    minlength: [3, 'Username must be at least 3 characters']
+    trim: true
   },
   email: {
     type: String,
-    required: [true, 'Email is required'],
+    required: true,
     unique: true,
     lowercase: true,
-    trim: true,
-    match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email']
+    trim: true
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
-    minlength: [6, 'Password must be at least 6 characters'],
+    required: true,
     select: false
   },
-  profilePicture: {
-    type: String,
-    default: 'https://res.cloudinary.com/demo/image/upload/avatar-placeholder.png'
-  },
-  coverPhoto: {
+  profileImage: {
     type: String,
     default: ''
   },
-  bio: {
+  coverImage: {
     type: String,
-    maxlength: [160, 'Bio must be less than 160 characters'],
+    default: ''
+  },
+  headline: {
+    type: String,
     default: ''
   },
   location: {
     type: String,
     default: ''
   },
-  website: {
+  gender: {
     type: String,
+    enum: ['male', 'female', 'other', ''],
     default: ''
   },
-  dateOfBirth: {
-    type: Date
+  skills: {
+    type: [String],
+    default: []
+  },
+  education: {
+    type: [{
+      college: String,
+      degree: String,
+      fieldOfStudy: String,
+      startYear: Number,
+      endYear: Number
+    }],
+    default: []
+  },
+  experience: {
+    type: [{
+      title: String,
+      company: String,
+      location: String,
+      description: String,
+      startDate: Date,
+      endDate: Date
+    }],
+    default: []
+  },
+  // ✅ FIX: Add connection field with default empty array
+  connection: {
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: 'User',
+    default: []
   },
   followers: [{
     type: mongoose.Schema.Types.ObjectId,
@@ -68,87 +97,15 @@ const userSchema = new mongoose.Schema({
   isAdmin: {
     type: Boolean,
     default: false
-  },
-  bookmarks: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Post'
-  }],
-  notifications: [{
-    type: {
-      type: String,
-      enum: ['like', 'comment', 'follow', 'retweet', 'mention']
-    },
-    from: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    },
-    post: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Post'
-    },
-    read: {
-      type: Boolean,
-      default: false
-    },
-    createdAt: {
-      type: Date,
-      default: Date.now
-    }
-  }],
-  resetPasswordToken: String,
-  resetPasswordExpire: Date
+  }
 }, {
   timestamps: true
 });
 
-// Indexes for better performance
-userSchema.index({ username: 1 });
+// Indexes
+userSchema.index({ userName: 1 });
 userSchema.index({ email: 1 });
-userSchema.index({ followers: 1 });
-userSchema.index({ following: 1 });
-
-// Hash password before saving
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
-    return next();
-  }
-
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Method to compare passwords
-userSchema.methods.comparePassword = async function(candidatePassword) {
-  try {
-    return await bcrypt.compare(candidatePassword, this.password);
-  } catch (error) {
-    throw new Error(error);
-  }
-};
-
-// Method to get public profile
-userSchema.methods.getPublicProfile = function() {
-  return {
-    _id: this._id,
-    name: this.name,
-    username: this.username,
-    email: this.email,
-    profilePicture: this.profilePicture,
-    coverPhoto: this.coverPhoto,
-    bio: this.bio,
-    location: this.location,
-    website: this.website,
-    followers: this.followers,
-    following: this.following,
-    isVerified: this.isVerified,
-    createdAt: this.createdAt
-  };
-};
+userSchema.index({ connection: 1 });
 
 const User = mongoose.model('User', userSchema);
 
