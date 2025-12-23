@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Heart, MessageCircle, Repeat2, Share2, Trash2, MoreHorizontal, X } from 'lucide-react';
+import { Heart, MessageCircle, Repeat2, Share2, Trash2, MoreHorizontal, X, Bookmark, BookmarkCheck } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import dp from '../assets/dp.webp';
 
@@ -16,12 +16,14 @@ const Post = ({ post, currentUser, onDelete }) => {
   const [comment, setComment] = useState('');
   const [comments, setComments] = useState([]);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(false); // Bookmark State
   const [showMenu, setShowMenu] = useState(false);
   const [isReposting, setIsReposting] = useState(false);
   const [showRepostModal, setShowRepostModal] = useState(false);
   const [repostText, setRepostText] = useState('');
   const [showShareMenu, setShowShareMenu] = useState(false);
 
+  // Initial post data effect
   useEffect(() => {
     if (post) {
       setIsLiked(post.like?.includes(currentUser?._id) || false);
@@ -29,6 +31,46 @@ const Post = ({ post, currentUser, onDelete }) => {
       setComments(post.comment || []);
     }
   }, [post, currentUser]);
+
+  // Check Bookmark Status effect
+  useEffect(() => {
+    if (post?._id) {
+      checkBookmarkStatus();
+    }
+  }, [post._id]);
+
+  const checkBookmarkStatus = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const config = {
+        headers: { 'Authorization': `Bearer ${token}` },
+        withCredentials: true
+      };
+      const response = await axios.get(`/api/bookmarks/check/${post._id}`, config);
+      if (response.data.success) {
+        setIsBookmarked(response.data.bookmarked);
+      }
+    } catch (error) {
+      console.error('Check bookmark error:', error);
+    }
+  };
+
+  const handleBookmark = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const config = {
+        headers: { 'Authorization': `Bearer ${token}` },
+        withCredentials: true
+      };
+      const response = await axios.post(`/api/bookmarks/toggle/${post._id}`, {}, config);
+      if (response.data.success) {
+        setIsBookmarked(response.data.bookmarked);
+      }
+    } catch (error) {
+      console.error('Toggle bookmark error:', error);
+      alert('Failed to bookmark post');
+    }
+  };
 
   const handleLike = async () => {
     try {
@@ -92,7 +134,7 @@ const Post = ({ post, currentUser, onDelete }) => {
         alert('Post reposted successfully!');
         setShowRepostModal(false);
         setRepostText('');
-        window.location.reload(); // Refresh to show new repost
+        window.location.reload(); 
       }
     } catch (error) {
       console.error('Repost error:', error);
@@ -204,7 +246,7 @@ const Post = ({ post, currentUser, onDelete }) => {
               onClick={() => setShowMenu(!showMenu)}
               className="p-2 hover:bg-slate-700 rounded-full transition-colors"
             >
-              <MoreHorizontal className="w-5 h-5 text-gray-400" />
+              < MoreHorizontal className="w-5 h-5 text-gray-400" />
             </button>
             
             {showMenu && (
@@ -326,6 +368,24 @@ const Post = ({ post, currentUser, onDelete }) => {
               </>
             )}
           </div>
+
+          {/* Bookmark Button */}
+          <button
+            onClick={handleBookmark}
+            className={`flex items-center space-x-2 transition-colors group ${
+              isBookmarked ? 'text-yellow-500' : 'text-gray-400 hover:text-yellow-500'
+            }`}
+          >
+            <div className={`p-2 rounded-full ${
+              isBookmarked ? 'bg-yellow-500/10' : 'group-hover:bg-yellow-500/10'
+            }`}>
+              {isBookmarked ? (
+                <BookmarkCheck className="w-5 h-5 fill-current" />
+              ) : (
+                <Bookmark className="w-5 h-5" />
+              )}
+            </div>
+          </button>
         </div>
 
         {/* Comments Section */}

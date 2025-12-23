@@ -11,6 +11,7 @@ import axios from 'axios';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { IoChatbubbleEllipsesSharp } from "react-icons/io5";
 import { MdWork } from "react-icons/md";
+import { Bookmark, BarChart3 } from 'lucide-react';
 
 function Nav() {
     const [activeSearch, setActiveSearch] = useState(false)
@@ -176,6 +177,26 @@ function Nav() {
                 </div> */}
 
             </div>
+            <div
+            className={`flex flex-col items-center cursor-pointer ${
+                isActive("/bookmarks") ? "text-yellow-400 font-semibold" : "text-gray-300"
+            }`}
+            onClick={() => navigate("/bookmarks")}
+            >
+            <Bookmark className='w-[23px] h-[23px]' />
+            <span className='hidden md:block text-sm'>Saved</span>
+            </div>
+
+            <div
+            className={`flex flex-col items-center cursor-pointer ${
+                isActive("/analytics") ? "text-purple-400 font-semibold" : "text-gray-300"
+            }`}
+            onClick={() => navigate("/analytics")}
+            >
+            <BarChart3 className='w-[23px] h-[23px]' />
+            <span className='hidden md:block text-sm'>Analytics</span>
+            </div>
+
 
             {/* Profile Popup */}
             {showPopup && (

@@ -9,6 +9,8 @@ import { IoSparklesSharp } from "react-icons/io5";
 import axios from "axios";
 import Post from "../components/Post";
 import AIChat from "../components/AIChat";
+import Stories from "../components/Stories"; // ✅ ADDED
+import TrendingHashtags from '../components/TrendingHashtags';
 
 function Home() {
   const { userData = {}, edit, setEdit, postData, getPost, handleGetProfile } = useContext(userDataContext);
@@ -196,6 +198,12 @@ function Home() {
 
       {/* CENTER FEED */}
       <div className="w-full lg:w-[50%] flex flex-col gap-5 overflow-y-auto custom-scrollbar">
+        
+        {/* ✅ STORIES SECTION - ADDED */}
+        <div className="bg-gradient-to-br from-[#1e293b] to-[#334155] rounded-2xl p-4 shadow-xl border border-slate-700">
+          <Stories />
+        </div>
+
         {/* Create Post Button */}
         <div className="bg-gradient-to-br from-[#1e293b] to-[#334155] rounded-2xl p-4 shadow-xl border border-slate-700">
           <button
@@ -207,11 +215,10 @@ function Home() {
           </button>
         </div>
 
-        {/* Posts Feed - FIXED */}
+        {/* Posts Feed */}
         <div className="space-y-4">
           {postData && Array.isArray(postData) && postData.length > 0 ? (
             postData.map((post) => {
-              // ✅ FIXED: Validate post data before rendering
               if (!post || !post._id) {
                 console.warn('Skipping invalid post:', post);
                 return null;
@@ -222,7 +229,7 @@ function Home() {
                     post={post}
                     currentUser={userData}
                     onDelete={(postId) => {
-                      getPost(); // Refresh posts after delete
+                      getPost();
                     }}
                   />
                 </div>
@@ -239,6 +246,7 @@ function Home() {
       </div>
 
       <AIChat />
+      <TrendingHashtags />
 
       {/* Create Post Modal */}
       {uploadPost && (

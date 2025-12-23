@@ -90,6 +90,11 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
+  bookmarks: [{
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'Post',
+  default: []
+}],
   isVerified: {
     type: Boolean,
     default: false

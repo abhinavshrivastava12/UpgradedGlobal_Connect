@@ -1,58 +1,112 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Check if API key exists
-if (!process.env.GOOGLE_GEMINI_KEY) {
-    console.warn('⚠️ WARNING: GOOGLE_GEMINI_KEY not found in environment variables');
-    console.warn('⚠️ AI chat will return fallback responses');
+/* ================================
+   ENV CHECK
+================================ */
+const GEMINI_KEY = process.env.GOOGLE_GEMINI_KEY;
+
+if (!GEMINI_KEY) {
+  console.warn("⚠️ GOOGLE_GEMINI_KEY not found in environment variables");
+  console.warn("⚠️ Gemini AI disabled → fallback responses will be used");
 }
 
-const genAI = process.env.GOOGLE_GEMINI_KEY 
-    ? new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_KEY)
-    : null;
+/* ================================
+   INIT GEMINI (ONLY IF KEY EXISTS)
+================================ */
+const genAI = GEMINI_KEY ? new GoogleGenerativeAI(GEMINI_KEY) : null;
 
-// Use gemini-pro model (better quota management)
-const model = genAI ? genAI.getGenerativeModel({
-    model: "gemini-pro",
-    systemInstruction: `
-        Role of AI: You are a friendly, knowledgeable, and interactive assistant for the Global Connect platform. Your goal is to guide users, answer questions, and help them navigate the website and its features efficiently.
+const model = genAI
+  ? genAI.getGenerativeModel({
+      model: "gemini-2.5-flash", // ✅ WORKING MODEL
+      systemInstruction: `
+You are a friendly, knowledgeable AI assistant for the Global Connect platform.
 
-Primary Responsibilities:
-- Welcome Users: Greet new users politely and give a brief overview of the platform.
-- Guide Navigation: Help users understand where to find different features.
-- Answer Questions: Provide clear answers about website usage, features, and troubleshooting.
-- Provide Suggestions & Tips: Give users helpful hints to enhance their experience.
-- Handle Errors / Issues Gracefully: Provide guidance or contact information if users encounter problems.
-- Keep Communication Friendly & Professional: Maintain a conversational tone, avoid jargon, and make users feel welcomed.
+Your responsibilities:
+- Greet users politely
+- Help with networking, jobs, chat, posts, stories, and profile management
+- Guide users clearly and simply
+- Keep responses short, helpful, and friendly
+- If unsure, guide users to platform features
 
-Default Greeting Example:
-"Hi there! I'm your Global Connect guide. I can help you navigate the website, find jobs, connect with professionals, and make the most out of your experience here. What would you like to do today?"
-    `
-}) : null;
+Tone:
+Professional, warm, and easy to understand.
 
+Example greeting:
+"Hi! 👋 I'm your Global Connect assistant. How can I help you today?"
+      `,
+    })
+  : null;
+
+/* ================================
+   SIMPLE RATE LIMIT (ANTI-SPAM)
+================================ */
+let lastRequestTime = 0;
+
+/* ================================
+   MAIN FUNCTION
+================================ */
 export default async function generateContent(prompt) {
-    try {
-        // If no API key, return a helpful fallback response
-        if (!model) {
-            return getFallbackResponse(prompt);
-        }
-
-        const result = await model.generateContent(prompt);
-        const response = result.response.text();
-        console.log('✅ AI Response generated successfully');
-        return response;
-    } catch (error) {
-        console.error('❌ AI Service Error:', error.message);
-        
-        // Handle quota exceeded
-        if (error.status === 429) {
-            return "I'm currently experiencing high traffic. Please try again in a few minutes. Meanwhile, feel free to explore Global Connect features like networking, job search, and messaging!";
-        }
-        
-        // Handle other errors
-        return getFallbackResponse(prompt);
+  try {
+    if (!prompt || typeof prompt !== "string") {
+      return {
+        success: false,
+        reply: getFallbackResponse(""),
+        source: "fallback",
+      };
     }
-}
 
+    // Rate limit: 1 request per 1.5 sec
+    const now = Date.now();
+    if (now - lastRequestTime < 1500) {
+      return {
+        success: false,
+        reply: getFallbackResponse(prompt),
+        source: "fallback",
+      };
+    }
+    lastRequestTime = now;
+
+    // If Gemini not available → fallback
+    if (!model) {
+      return {
+        success: false,
+        reply: getFallbackResponse(prompt),
+        source: "fallback",
+      };
+    }
+
+    // Gemini call
+    const result = await model.generateContent(prompt);
+    const reply = result.response.text();
+
+    console.log("🤖 Gemini AI response generated");
+
+    return {
+      success: true,
+      reply,
+      source: "gemini",
+    };
+
+  } catch (error) {
+    console.error("❌ Gemini AI Error:", error.message);
+
+    // Quota / rate limit
+    if (error?.status === 429) {
+      return {
+        success: false,
+        reply:
+          "I'm experiencing high traffic right now. Please try again shortly. Meanwhile, I can still help you explore Global Connect features!",
+        source: "fallback",
+      };
+    }
+
+    return {
+      success: false,
+      reply: getFallbackResponse(prompt),
+      source: "fallback",
+    };
+  }
+}
 // Fallback responses when AI is not available
 function getFallbackResponse(prompt) {
     const lowerPrompt = prompt.toLowerCase();

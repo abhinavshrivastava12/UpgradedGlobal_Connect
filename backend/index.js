@@ -209,6 +209,11 @@ import notificationRoutes from './routes/notification.routes.js';
 import chatRoutes from './routes/chat.routes.js';
 import jobRoutes from './routes/job.routes.js';
 import aiRoutes from './routes/ai.routes.js';
+import agoraRoutes from './routes/agora.routes.js'; // ✅ ADDED
+import storyRoutes from './routes/story.routes.js'; // ✅ ADDED
+import bookmarkRoutes from './routes/bookmark.routes.js';
+import hashtagRoutes from './routes/hashtag.routes.js';
+import analyticsRoutes from './routes/analytics.routes.js';
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -219,6 +224,11 @@ app.use('/api/notification', notificationRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/agora', agoraRoutes); // ✅ ADDED
+app.use('/api/stories', storyRoutes); // ✅ ADDED
+app.use('/api/bookmarks', bookmarkRoutes);
+app.use('/api/hashtags', hashtagRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ 

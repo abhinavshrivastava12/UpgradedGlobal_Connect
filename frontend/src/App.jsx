@@ -11,6 +11,8 @@ import Network from './pages/Network';
 import Notification from './pages/Notification';
 import ChatPage from './pages/ChatPage';
 import JobBoard from './pages/JobBoard';
+import Bookmarks from './pages/Bookmarks';
+import Analytics from './pages/Analytics';
 
 // Import components
 import Nav from './components/Nav';
@@ -57,6 +59,8 @@ function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="/network" element={<Network />} />
             <Route path="/notification" element={<Notification />} />
+            <Route path="/bookmarks" element={<Bookmarks />} />
+            <Route path="/analytics" element={<Analytics />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/jobs" element={<JobBoard />} />
             <Route path="*" element={<Navigate to="/" replace />} />
