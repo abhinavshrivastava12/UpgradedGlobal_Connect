@@ -14,10 +14,14 @@ const postSchema = new mongoose.Schema({
     type: String,
     default: null
   },
-  like: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  }],
+  reactions: {
+    like: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    love: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    haha: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    wow: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    sad: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    angry: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+  },
   comment: [{
     content: {
       type: String,

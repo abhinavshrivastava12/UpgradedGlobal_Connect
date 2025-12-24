@@ -214,6 +214,8 @@ import storyRoutes from './routes/story.routes.js'; // ✅ ADDED
 import bookmarkRoutes from './routes/bookmark.routes.js';
 import hashtagRoutes from './routes/hashtag.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
+import statusRoutes from './routes/status.routes.js';
+import reactionRoutes from './routes/reaction.routes.js';
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -229,6 +231,8 @@ app.use('/api/stories', storyRoutes); // ✅ ADDED
 app.use('/api/bookmarks', bookmarkRoutes);
 app.use('/api/hashtags', hashtagRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/status', statusRoutes);
+app.use('/api/reactions', reactionRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ 

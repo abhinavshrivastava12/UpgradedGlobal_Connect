@@ -45,20 +45,26 @@ function VideoCallModal({
 
     // Socket listeners
     socket.on('incomingCall', ({ signal, from, callerInfo }) => {
+      console.log('📞 Incoming call from:', from);
       setIncomingCall({ signal, from, callerInfo });
     });
 
     socket.on('callAccepted', ({ signal }) => {
+      console.log('✅ Call accepted');
       setCallAccepted(true);
-      connectionRef.current.signal(signal);
+      if (connectionRef.current) {
+        connectionRef.current.signal(signal);
+      }
     });
 
     socket.on('callRejected', () => {
+      console.log('❌ Call rejected');
       alert('Call was rejected');
       handleEndCall();
     });
 
     socket.on('callEnded', () => {
+      console.log('🔴 Call ended by other user');
       handleEndCall();
     });
 
@@ -80,7 +86,9 @@ function VideoCallModal({
       return;
     }
 
+    console.log('📞 Calling user:', recipientId);
     setCalling(true);
+    
     const peer = new Peer({
       initiator: true,
       trickle: false,
@@ -88,6 +96,7 @@ function VideoCallModal({
     });
 
     peer.on('signal', (data) => {
+      console.log('📡 Sending call signal to:', recipientId);
       socket.emit('callUser', {
         userToCall: recipientId,
         signalData: data,
@@ -97,9 +106,16 @@ function VideoCallModal({
     });
 
     peer.on('stream', (remoteStream) => {
+      console.log('📺 Received remote stream');
       if (userVideo.current) {
         userVideo.current.srcObject = remoteStream;
       }
+    });
+
+    peer.on('error', (err) => {
+      console.error('Peer error:', err);
+      alert('Connection failed. Please try again.');
+      handleEndCall();
     });
 
     connectionRef.current = peer;
@@ -108,7 +124,9 @@ function VideoCallModal({
   const answerCall = () => {
     if (!stream || !incomingCall) return;
 
+    console.log('✅ Answering call from:', incomingCall.from);
     setCallAccepted(true);
+    
     const peer = new Peer({
       initiator: false,
       trickle: false,
@@ -116,6 +134,7 @@ function VideoCallModal({
     });
 
     peer.on('signal', (data) => {
+      console.log('📡 Sending answer signal');
       socket.emit('answerCall', {
         signal: data,
         to: incomingCall.from
@@ -123,9 +142,15 @@ function VideoCallModal({
     });
 
     peer.on('stream', (remoteStream) => {
+      console.log('📺 Received remote stream');
       if (userVideo.current) {
         userVideo.current.srcObject = remoteStream;
       }
+    });
+
+    peer.on('error', (err) => {
+      console.error('Peer error:', err);
+      handleEndCall();
     });
 
     peer.signal(incomingCall.signal);
@@ -134,6 +159,7 @@ function VideoCallModal({
   };
 
   const rejectCall = () => {
+    console.log('❌ Rejecting call');
     if (incomingCall) {
       socket.emit('rejectCall', { to: incomingCall.from });
       setIncomingCall(null);
@@ -141,7 +167,9 @@ function VideoCallModal({
   };
 
   const handleEndCall = () => {
+    console.log('🔴 Ending call');
     setCallEnded(true);
+    setCalling(false);
     
     if (connectionRef.current) {
       connectionRef.current.destroy();

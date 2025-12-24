@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Heart, MessageCircle, Repeat2, Share2, Trash2, MoreHorizontal, X, Bookmark, BookmarkCheck } from 'lucide-react';
+import { MessageCircle, Repeat2, Share2, Trash2, MoreHorizontal, X, Bookmark, BookmarkCheck } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import dp from '../assets/dp.webp';
+import PostReactions from './PostReactions';
 
 const Post = ({ post, currentUser, onDelete }) => {
   if (!post || !post._id) {
@@ -10,13 +11,11 @@ const Post = ({ post, currentUser, onDelete }) => {
     return null;
   }
 
-  const [isLiked, setIsLiked] = useState(false);
-  const [likesCount, setLikesCount] = useState(0);
   const [showComments, setShowComments] = useState(false);
   const [comment, setComment] = useState('');
   const [comments, setComments] = useState([]);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isBookmarked, setIsBookmarked] = useState(false); // Bookmark State
+  const [isBookmarked, setIsBookmarked] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [isReposting, setIsReposting] = useState(false);
   const [showRepostModal, setShowRepostModal] = useState(false);
@@ -26,11 +25,9 @@ const Post = ({ post, currentUser, onDelete }) => {
   // Initial post data effect
   useEffect(() => {
     if (post) {
-      setIsLiked(post.like?.includes(currentUser?._id) || false);
-      setLikesCount(post.like?.length || 0);
       setComments(post.comment || []);
     }
-  }, [post, currentUser]);
+  }, [post]);
 
   // Check Bookmark Status effect
   useEffect(() => {
@@ -69,26 +66,6 @@ const Post = ({ post, currentUser, onDelete }) => {
     } catch (error) {
       console.error('Toggle bookmark error:', error);
       alert('Failed to bookmark post');
-    }
-  };
-
-  const handleLike = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const config = {
-        headers: { 'Authorization': `Bearer ${token}` },
-        withCredentials: true
-      };
-
-      const response = await axios.post(`/api/post/like/${post._id}`, {}, config);
-      
-      if (response.data) {
-        setIsLiked(!isLiked);
-        setLikesCount(isLiked ? likesCount - 1 : likesCount + 1);
-      }
-    } catch (error) {
-      console.error('Like error:', error);
-      alert('Failed to like post');
     }
   };
 
@@ -172,6 +149,8 @@ const Post = ({ post, currentUser, onDelete }) => {
         alert('Link copied to clipboard!');
         setShowShareMenu(false);
         return;
+      default:
+        return;
     }
     
     if (shareUrl) {
@@ -246,7 +225,7 @@ const Post = ({ post, currentUser, onDelete }) => {
               onClick={() => setShowMenu(!showMenu)}
               className="p-2 hover:bg-slate-700 rounded-full transition-colors"
             >
-              < MoreHorizontal className="w-5 h-5 text-gray-400" />
+              <MoreHorizontal className="w-5 h-5 text-gray-400" />
             </button>
             
             {showMenu && (
@@ -328,19 +307,8 @@ const Post = ({ post, currentUser, onDelete }) => {
             </div>
           </button>
 
-          <button
-            onClick={handleLike}
-            className={`flex items-center space-x-2 transition-colors group ${
-              isLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-500'
-            }`}
-          >
-            <div className={`p-2 rounded-full ${
-              isLiked ? 'bg-red-500/10' : 'group-hover:bg-red-500/10'
-            }`}>
-              <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
-            </div>
-            <span className="text-sm">{likesCount}</span>
-          </button>
+          {/* Replaced Like Section with PostReactions */}
+          <PostReactions postId={post._id} currentUserId={currentUser?._id} />
 
           <div className="relative">
             <button 

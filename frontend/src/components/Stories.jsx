@@ -14,6 +14,7 @@ function Stories() {
   const [mediaPreview, setMediaPreview] = useState(null);
   const [storyText, setStoryText] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [viewsCount, setViewsCount] = useState(0);
   
   const fileInputRef = useRef();
 
@@ -91,6 +92,7 @@ function Stories() {
     setCurrentStoryIndex(index);
     setSelectedStory(storyGroup.stories[index]);
     setShowStoryModal(true);
+    setViewsCount(storyGroup.stories[index].views?.length || 0);
 
     try {
       const token = localStorage.getItem('token');
@@ -107,6 +109,8 @@ function Stories() {
       
       // Reload to get updated view count
       loadStories();
+      // Update views count immediately
+      setViewsCount(prev => prev + 1);
     } catch (error) {
       console.error('View story error:', error);
     }
@@ -119,6 +123,7 @@ function Stories() {
     if (nextIndex < selectedStoryGroup.stories.length) {
       setCurrentStoryIndex(nextIndex);
       setSelectedStory(selectedStoryGroup.stories[nextIndex]);
+      setViewsCount(selectedStoryGroup.stories[nextIndex].views?.length || 0);
       handleViewStory(selectedStoryGroup, nextIndex);
     } else {
       handleCloseStory();
@@ -132,6 +137,7 @@ function Stories() {
     if (prevIndex >= 0) {
       setCurrentStoryIndex(prevIndex);
       setSelectedStory(selectedStoryGroup.stories[prevIndex]);
+      setViewsCount(selectedStoryGroup.stories[prevIndex].views?.length || 0);
       handleViewStory(selectedStoryGroup, prevIndex);
     }
   };
@@ -141,6 +147,7 @@ function Stories() {
     setSelectedStory(null);
     setSelectedStoryGroup(null);
     setCurrentStoryIndex(0);
+    setViewsCount(0);
   };
 
   return (
@@ -249,17 +256,16 @@ function Stories() {
         </>
       )}
 
-      {/* View Story Modal */}
+      {/* View Story Modal - FIXED */}
       {showStoryModal && selectedStory && (
         <>
           <div 
             className="fixed inset-0 bg-black z-50"
-            onClick={handleCloseStory}
           />
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="relative w-full max-w-md h-screen bg-black">
               
-              {/* ✅ Close Button - Top Right */}
+              {/* ✅ Close Button - Top Right Corner */}
               <button
                 onClick={handleCloseStory}
                 className="absolute top-4 right-4 z-20 p-2 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
@@ -287,7 +293,7 @@ function Stories() {
                   <div className="ml-auto flex items-center gap-2 bg-black/50 px-3 py-1 rounded-full">
                     <Eye className="w-4 h-4 text-white" />
                     <span className="text-white text-sm font-semibold">
-                      {selectedStory.views?.length || 0}
+                      {viewsCount}
                     </span>
                   </div>
                 </div>
