@@ -92,7 +92,6 @@ function Stories() {
     setSelectedStory(storyGroup.stories[index]);
     setShowStoryModal(true);
 
-    // Mark as viewed
     try {
       const token = localStorage.getItem('token');
       const config = {
@@ -105,6 +104,9 @@ function Stories() {
         {},
         config
       );
+      
+      // Reload to get updated view count
+      loadStories();
     } catch (error) {
       console.error('View story error:', error);
     }
@@ -117,8 +119,9 @@ function Stories() {
     if (nextIndex < selectedStoryGroup.stories.length) {
       setCurrentStoryIndex(nextIndex);
       setSelectedStory(selectedStoryGroup.stories[nextIndex]);
+      handleViewStory(selectedStoryGroup, nextIndex);
     } else {
-      setShowStoryModal(false);
+      handleCloseStory();
     }
   };
 
@@ -129,7 +132,15 @@ function Stories() {
     if (prevIndex >= 0) {
       setCurrentStoryIndex(prevIndex);
       setSelectedStory(selectedStoryGroup.stories[prevIndex]);
+      handleViewStory(selectedStoryGroup, prevIndex);
     }
+  };
+
+  const handleCloseStory = () => {
+    setShowStoryModal(false);
+    setSelectedStory(null);
+    setSelectedStoryGroup(null);
+    setCurrentStoryIndex(0);
   };
 
   return (
@@ -243,15 +254,15 @@ function Stories() {
         <>
           <div 
             className="fixed inset-0 bg-black z-50"
-            onClick={() => setShowStoryModal(false)}
+            onClick={handleCloseStory}
           />
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="relative w-full max-w-md h-screen bg-black">
               
-              {/* Close Button */}
+              {/* ✅ Close Button - Top Right */}
               <button
-                onClick={() => setShowStoryModal(false)}
-                className="absolute top-4 right-4 z-10 p-2 bg-black/50 rounded-full"
+                onClick={handleCloseStory}
+                className="absolute top-4 right-4 z-20 p-2 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
               >
                 <X className="w-6 h-6 text-white" />
               </button>
@@ -272,9 +283,12 @@ function Stories() {
                       {new Date(selectedStory.createdAt).toLocaleTimeString()}
                     </p>
                   </div>
-                  <div className="ml-auto flex items-center gap-1 text-white">
-                    <Eye className="w-4 h-4" />
-                    <span className="text-sm">{selectedStory.views?.length || 0}</span>
+                  {/* ✅ View Count with Icon */}
+                  <div className="ml-auto flex items-center gap-2 bg-black/50 px-3 py-1 rounded-full">
+                    <Eye className="w-4 h-4 text-white" />
+                    <span className="text-white text-sm font-semibold">
+                      {selectedStory.views?.length || 0}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -310,7 +324,7 @@ function Stories() {
               {currentStoryIndex > 0 && (
                 <button
                   onClick={handlePrevStory}
-                  className="absolute left-4 top-1/2 transform -translate-y-1/2 p-2 bg-black/50 rounded-full"
+                  className="absolute left-4 top-1/2 transform -translate-y-1/2 p-2 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
                 >
                   <ChevronLeft className="w-6 h-6 text-white" />
                 </button>
@@ -318,7 +332,7 @@ function Stories() {
               {currentStoryIndex < (selectedStoryGroup?.stories.length || 0) - 1 && (
                 <button
                   onClick={handleNextStory}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 p-2 bg-black/50 rounded-full"
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 p-2 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
                 >
                   <ChevronRight className="w-6 h-6 text-white" />
                 </button>

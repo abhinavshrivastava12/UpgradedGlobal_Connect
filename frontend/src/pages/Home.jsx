@@ -6,14 +6,17 @@ import EditProfile from "../components/EditProfile";
 import { RxCross1 } from "react-icons/rx";
 import { BsImage } from "react-icons/bs";
 import { IoSparklesSharp } from "react-icons/io5";
+import { Bookmark, BarChart3 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import axios from "axios";
 import Post from "../components/Post";
 import AIChat from "../components/AIChat";
-import Stories from "../components/Stories"; // ✅ ADDED
+import Stories from "../components/Stories";
 import TrendingHashtags from '../components/TrendingHashtags';
 
 function Home() {
   const { userData = {}, edit, setEdit, postData, getPost, handleGetProfile } = useContext(userDataContext);
+  const navigate = useNavigate();
 
   const [frontendImage, setFrontendImage] = useState("");
   const [backendImage, setBackendImage] = useState("");
@@ -134,7 +137,7 @@ function Home() {
             {userData?.headline || 'Not Logged In'}
           </p>
           
-          <div className="flex gap-6 mt-4">
+          <div className="flex gap-8 mt-4">
             <div className="text-center">
               <div className="font-bold text-lg text-purple-400">{userStats.posts}</div>
               <div className="text-xs text-gray-400">Posts</div>
@@ -156,6 +159,37 @@ function Home() {
             <IoSparklesSharp size={16} />
             Edit Profile
           </button>
+
+          {/* ✅ Quick Access Buttons */}
+          <div className="w-full mt-6 space-y-4">
+          <button
+            onClick={() => navigate('/bookmarks')}
+            className="w-full flex items-center gap-4 px-5 py-4 bg-gradient-to-r from-yellow-500/10 to-yellow-600/10 hover:from-yellow-500/20 hover:to-yellow-600/20 rounded-xl transition-all text-left group border border-yellow-500/30 hover:border-yellow-500/60 hover:shadow-lg hover:shadow-yellow-500/20"
+          >
+            <div className="w-11 h-11 flex items-center justify-center bg-yellow-500/20 rounded-lg group-hover:scale-110 transition-transform">
+              <Bookmark className="w-5 h-5 text-yellow-400" />
+            </div>
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-white">Saved Posts</div>
+              <div className="text-xs text-gray-400">View your bookmarks</div>
+            </div>
+            <div className="text-yellow-400 opacity-0 group-hover:opacity-100 transition-all text-xl group-hover:translate-x-1">→</div>
+          </button>
+
+          <button
+            onClick={() => navigate('/analytics')}
+            className="w-full flex items-center gap-4 px-5 py-4 bg-gradient-to-r from-purple-500/10 to-purple-600/10 hover:from-purple-500/20 hover:to-purple-600/20 rounded-xl transition-all text-left group border border-purple-500/30 hover:border-purple-500/60 hover:shadow-lg hover:shadow-purple-500/20"
+          >
+            <div className="w-11 h-11 flex items-center justify-center bg-purple-500/20 rounded-lg group-hover:scale-110 transition-transform">
+              <BarChart3 className="w-5 h-5 text-purple-400" />
+            </div>
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-white">Analytics</div>
+              <div className="text-xs text-gray-400">Track your engagement</div>
+            </div>
+            <div className="text-purple-400 opacity-0 group-hover:opacity-100 transition-all text-xl group-hover:translate-x-1">→</div>
+          </button>
+        </div>
         </div>
 
         {/* Suggested Users */}
@@ -199,7 +233,7 @@ function Home() {
       {/* CENTER FEED */}
       <div className="w-full lg:w-[50%] flex flex-col gap-5 overflow-y-auto custom-scrollbar">
         
-        {/* ✅ STORIES SECTION - ADDED */}
+        {/* Stories Section */}
         <div className="bg-gradient-to-br from-[#1e293b] to-[#334155] rounded-2xl p-4 shadow-xl border border-slate-700">
           <Stories />
         </div>

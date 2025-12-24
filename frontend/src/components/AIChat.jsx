@@ -53,23 +53,53 @@ function AIChat() {
             "Authorization": `Bearer ${token}`
           },
           withCredentials: true,
-          timeout: 10000 // 10 second timeout
+          timeout: 30000 // 30 seconds timeout
         }
       );
 
       console.log('✅ AI Response received:', res.data);
 
-      // Always check for reply in response
-      const aiText = res.data?.reply || "I'm here to help! Ask me about Global Connect features.";
+      // ✅ FIX: Backend sends nested object - extract the actual text
+      let aiText = "";
+      
+      // Check if response has nested reply object
+      if (res.data?.reply?.reply && typeof res.data.reply.reply === 'string') {
+        aiText = res.data.reply.reply;
+      } 
+      // Check if direct reply exists
+      else if (res.data?.reply && typeof res.data.reply === 'string') {
+        aiText = res.data.reply;
+      } 
+      // Check for message field
+      else if (res.data?.message && typeof res.data.message === 'string') {
+        aiText = res.data.message;
+      } 
+      // Check if data is wrapped
+      else if (res.data?.data?.reply && typeof res.data.data.reply === 'string') {
+        aiText = res.data.data.reply;
+      } 
+      // Check if response itself is string
+      else if (typeof res.data === 'string') {
+        aiText = res.data;
+      } 
+      // Default fallback
+      else {
+        aiText = "I'm here to help! What would you like to know about Global Connect?";
+      }
+      
+      console.log('✅ Extracted AI text:', aiText);
       
       setIsTyping(false);
 
-      // Typing animation effect
+      // ✅ FIX: Typing animation with proper text
+      const aiMessageId = Date.now() + Math.random();
+      
+      // Add empty message first
+      setMessages((prev) => [...prev, { from: "ai", text: "", id: aiMessageId }]);
+
+      // Type out the response word by word
       const words = aiText.split(" ");
       let displayText = "";
-
-      const aiMessageId = Date.now();
-      setMessages((prev) => [...prev, { from: "ai", text: "", id: aiMessageId }]);
 
       for (let i = 0; i < words.length; i++) {
         displayText += (i > 0 ? " " : "") + words[i];
@@ -86,8 +116,11 @@ function AIChat() {
           return newMessages;
         });
 
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await new Promise((resolve) => setTimeout(resolve, 40));
       }
+      
+      console.log('✅ Typing animation completed');
+
     } catch (error) {
       console.error("❌ AI Error:", error);
       setIsTyping(false);
@@ -100,6 +133,9 @@ function AIChat() {
         errorMessage += "Please login to continue. Once logged in, I can assist you with all Global Connect features!";
       } else if (error.response?.status === 429) {
         errorMessage += "I'm experiencing high traffic right now. Meanwhile, you can explore features like: 🤝 Networking, 💼 Jobs, 💬 Chat, 📝 Posts. What interests you?";
+      } else if (error.response?.data?.reply) {
+        // ✅ If backend sent a fallback response, use it
+        errorMessage = error.response.data.reply;
       } else {
         errorMessage += "Ask me about:\n\n🤝 Connecting with professionals\n💼 Finding jobs\n💬 Messaging features\n📝 Creating posts\n📸 Sharing stories\n\nWhat would you like to know?";
       }
@@ -109,7 +145,7 @@ function AIChat() {
         { 
           from: "ai", 
           text: errorMessage, 
-          id: Date.now() 
+          id: Date.now() + Math.random()
         }
       ]);
     } finally {
@@ -140,7 +176,6 @@ function AIChat() {
     </div>
   );
 
-  // Quick suggestion buttons
   const quickSuggestions = [
     "How do I connect with people?",
     "How can I find jobs?",
@@ -171,7 +206,6 @@ function AIChat() {
   return (
     <div className="w-full lg:w-[25%] bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl flex flex-col h-[90vh] mt-[90px] border border-slate-700">
       
-      {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-4 rounded-t-2xl border-b border-slate-700">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -198,7 +232,6 @@ function AIChat() {
         </div>
       </div>
 
-      {/* Chat messages */}
       <div className="flex-1 p-4 flex flex-col gap-3 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
         {messages.map((msg) => (
           <div
@@ -232,7 +265,6 @@ function AIChat() {
 
         {isTyping && <TypingIndicator />}
 
-        {/* Quick Suggestions (show only if 1 message) */}
         {messages.length === 1 && !loading && (
           <div className="mt-4">
             <p className="text-xs text-gray-400 mb-2 text-center">Quick questions:</p>
@@ -253,7 +285,6 @@ function AIChat() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input area */}
       <div className="p-4 border-t border-slate-700 bg-slate-800 rounded-b-2xl">
         <div className="flex gap-3 items-end">
           <div className="flex-1 relative">
