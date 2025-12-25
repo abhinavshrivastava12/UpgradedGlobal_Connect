@@ -12,11 +12,12 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
+// ✅ FIXED: Dynamic CORS for production
+const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
-      ? process.env.CLIENT_URL 
-      : 'http://localhost:5173',
+    origin: CLIENT_URL,
     methods: ['GET', 'POST'],
     credentials: true
   },
@@ -25,13 +26,12 @@ const io = new Server(server, {
   pingInterval: 25000
 });
 
-// Middleware
+// ✅ FIXED: Dynamic CORS
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? process.env.CLIENT_URL 
-    : 'http://localhost:5173',
+  origin: CLIENT_URL,
   credentials: true
 }));
+
 app.use(cookieParser());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -47,7 +47,6 @@ export const userSocketMap = new Map();
 io.on('connection', (socket) => {
   console.log('✅ User connected:', socket.id);
 
-  // User joins
   socket.on('join', ({ userId, email, token }) => {
     if (userId) {
       userSocketMap.set(userId, socket.id);
@@ -55,18 +54,15 @@ io.on('connection', (socket) => {
       socket.email = email;
       console.log('👤 User registered:', userId);
       
-      // Emit online users
       io.emit('onlineUsers', Array.from(userSocketMap.keys()));
       io.emit('active-users', Array.from(userSocketMap.keys()));
     }
   });
 
-  // Send message
   socket.on('sendMessage', async (data) => {
     console.log('📨 Message received:', data);
     
     try {
-      // Save to database
       const message = await Message.create({
         from: data.from,
         to: data.to,
@@ -75,7 +71,6 @@ io.on('connection', (socket) => {
         timestamp: new Date()
       });
 
-      // Populate sender info
       await message.populate('from', 'firstName lastName userName profileImage');
       await message.populate('to', 'firstName lastName userName profileImage');
 
@@ -101,13 +96,11 @@ io.on('connection', (socket) => {
         readAt: message.readAt
       };
 
-      // Send to recipient
       const recipientSocketId = userSocketMap.get(data.to);
       if (recipientSocketId) {
         io.to(recipientSocketId).emit('receiveMessage', messageData);
       }
 
-      // Send back to sender
       socket.emit('messageSent', messageData);
 
     } catch (error) {
@@ -116,7 +109,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Typing indicator
   socket.on('typing', (recipientId) => {
     const recipientSocketId = userSocketMap.get(recipientId);
     if (recipientSocketId && socket.userId) {
@@ -127,7 +119,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Stop typing
   socket.on('stopTyping', (recipientId) => {
     const recipientSocketId = userSocketMap.get(recipientId);
     if (recipientSocketId && socket.userId) {
@@ -135,7 +126,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Video call events
   socket.on('callUser', (data) => {
     const recipientSocketId = userSocketMap.get(data.userToCall);
     if (recipientSocketId) {
@@ -175,7 +165,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Posts
   socket.on('new-post', (post) => {
     socket.broadcast.emit('post-created', post);
   });
@@ -187,7 +176,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Disconnect
   socket.on('disconnect', () => {
     if (socket.userId) {
       userSocketMap.delete(socket.userId);
@@ -209,8 +197,8 @@ import notificationRoutes from './routes/notification.routes.js';
 import chatRoutes from './routes/chat.routes.js';
 import jobRoutes from './routes/job.routes.js';
 import aiRoutes from './routes/ai.routes.js';
-import agoraRoutes from './routes/agora.routes.js'; // ✅ ADDED
-import storyRoutes from './routes/story.routes.js'; // ✅ ADDED
+import agoraRoutes from './routes/agora.routes.js';
+import storyRoutes from './routes/story.routes.js';
 import bookmarkRoutes from './routes/bookmark.routes.js';
 import hashtagRoutes from './routes/hashtag.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
@@ -226,8 +214,8 @@ app.use('/api/notification', notificationRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/ai', aiRoutes);
-app.use('/api/agora', agoraRoutes); // ✅ ADDED
-app.use('/api/stories', storyRoutes); // ✅ ADDED
+app.use('/api/agora', agoraRoutes);
+app.use('/api/stories', storyRoutes);
 app.use('/api/bookmarks', bookmarkRoutes);
 app.use('/api/hashtags', hashtagRoutes);
 app.use('/api/analytics', analyticsRoutes);
@@ -257,6 +245,7 @@ server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 Socket.io ready for connections`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔗 Client URL: ${CLIENT_URL}`);
 });
 
 export { io };

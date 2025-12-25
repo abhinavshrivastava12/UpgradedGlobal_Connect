@@ -5,13 +5,55 @@ import { userDataContext } from '../context/UserContext';
 import EditProfile from '../components/EditProfile';
 import Post from '../components/Post';
 import ConnectionButton from '../components/ConnectionButton';
+import { useParams, useLocation } from 'react-router-dom';
+import axios from 'axios';
 
 const dp = 'https://ui-avatars.com/api/?name=User&size=200&background=6366f1&color=fff';
 
 function Profile() {
-  const { userData, edit, setEdit, postData, profileData } = useContext(userDataContext);
+  const { userData, edit, setEdit, postData } = useContext(userDataContext);
+  const [profileData, setProfileData] = useState(null);
   const [profilePosts, setProfilePosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  const { userName } = useParams();
+  const location = useLocation();
 
+  // Load profile data
+  useEffect(() => {
+    const loadProfile = async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem('token');
+        const config = {
+          headers: { 'Authorization': `Bearer ${token}` },
+          withCredentials: true
+        };
+
+        // If userName in URL, fetch that user's profile
+        if (userName) {
+          const response = await axios.get(`/api/user/profile/${userName}`, config);
+          setProfileData(response.data);
+        } 
+        // Otherwise show current user's profile
+        else if (userData) {
+          setProfileData(userData);
+        }
+      } catch (error) {
+        console.error('Load profile error:', error);
+        // Fallback to current user data
+        if (userData) {
+          setProfileData(userData);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, [userName, userData]);
+
+  // Filter posts for this profile
   useEffect(() => {
     if (Array.isArray(postData) && profileData?._id) {
       const filtered = postData.filter((post) => post?.author?._id === profileData._id);
@@ -26,6 +68,25 @@ function Profile() {
   const experience = profileData?.experience ?? [];
   const connectionsCount = profileData?.connection?.length ?? 0;
 
+  // Check if viewing own profile
+  const isOwnProfile = !userName || (userData && profileData && userData._id === profileData._id);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white pt-20 flex items-center justify-center">
+        <div className="text-xl">Loading profile...</div>
+      </div>
+    );
+  }
+
+  if (!profileData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white pt-20 flex items-center justify-center">
+        <div className="text-xl">Profile not found</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white pt-20">
       <Nav />
@@ -37,7 +98,7 @@ function Profile() {
           {/* LEFT SECTION */}
           <section className="flex-1 space-y-6">
 
-            {/* PROFILE CARD - COMPLETELY FIXED */}
+            {/* PROFILE CARD */}
             <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-slate-700">
               
               {/* Cover Image */}
@@ -51,13 +112,13 @@ function Profile() {
                 )}
               </div>
 
-              {/* Profile Content - FIXED LAYOUT */}
+              {/* Profile Content */}
               <div className="px-6 pb-6">
                 {/* Profile Image - Floating */}
                 <div className="flex flex-col items-start -mt-16 relative z-10">
                   <div 
-                    className="w-32 h-32 rounded-full border-4 border-slate-800 overflow-hidden cursor-pointer bg-slate-700 shadow-2xl mb-4"
-                    onClick={() => userData?._id === profileData?._id && setEdit(true)}
+                    className={`w-32 h-32 rounded-full border-4 border-slate-800 overflow-hidden bg-slate-700 shadow-2xl mb-4 ${isOwnProfile ? 'cursor-pointer' : ''}`}
+                    onClick={() => isOwnProfile && setEdit(true)}
                   >
                     <img 
                       src={profileData?.profileImage || dp} 
@@ -66,7 +127,7 @@ function Profile() {
                     />
                   </div>
 
-                  {/* Name & Info Section - FIXED */}
+                  {/* Name & Info Section */}
                   <div className="w-full">
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
                       <div className="flex-1">
@@ -86,9 +147,9 @@ function Profile() {
                         </div>
                       </div>
 
-                      {/* Action Button - FIXED */}
+                      {/* Action Button */}
                       <div className="flex-shrink-0">
-                        {profileData?._id === userData?._id ? (
+                        {isOwnProfile ? (
                           <button
                             onClick={() => setEdit(true)}
                             className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full font-semibold hover:from-purple-700 hover:to-pink-700 transition-all flex items-center gap-2 shadow-lg hover:shadow-purple-500/50"
@@ -102,7 +163,7 @@ function Profile() {
                       </div>
                     </div>
 
-                    {/* Stats - NEW */}
+                    {/* Stats */}
                     <div className="flex gap-8 pt-4 border-t border-slate-700">
                       <div>
                         <div className="text-2xl font-bold text-purple-400">{profilePosts.length}</div>
@@ -137,7 +198,7 @@ function Profile() {
                 <div className="text-center py-12">
                   <div className="text-6xl mb-4">📭</div>
                   <p className="text-gray-400 text-lg">No posts yet</p>
-                  {profileData?._id === userData?._id && (
+                  {isOwnProfile && (
                     <p className="text-gray-500 text-sm mt-2">
                       Start sharing your thoughts!
                     </p>
@@ -147,7 +208,13 @@ function Profile() {
                 <div className="space-y-6">
                   {profilePosts.map((post) => (
                     <div key={post._id} className="border-b border-slate-700 pb-6 last:border-0">
-                      <Post {...post} />
+                      <Post 
+                        post={post}
+                        currentUser={userData}
+                        onDelete={() => {
+                          setProfilePosts(prev => prev.filter(p => p._id !== post._id));
+                        }}
+                      />
                     </div>
                   ))}
                 </div>

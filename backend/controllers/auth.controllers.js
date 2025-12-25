@@ -7,7 +7,6 @@ import OTP from "../models/otp.model.js";
 import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
 
-// Create Nodemailer transporter after dotenv loads env vars
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -21,10 +20,8 @@ const transporter = nodemailer.createTransport({
 console.log("Nodemailer Config - User:", process.env.EMAIL_USER);
 console.log("Nodemailer Config - Pass:", process.env.EMAIL_PASS ? "******" : "undefined");
 
-// Generate 6-digit OTP
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
-// Send OTP Email
 export const sendOTPEmail = async (email, otp, type) => {
   const mailOptions = {
     from: process.env.EMAIL_USER,
@@ -47,7 +44,6 @@ export const sendOTPEmail = async (email, otp, type) => {
   await transporter.sendMail(mailOptions);
 };
 
-// Sign Up: Send OTP
 export const sendSignUpOTP = async (req, res) => {
   try {
     const { firstName, lastName, userName, email, password } = req.body;
@@ -82,7 +78,6 @@ export const sendSignUpOTP = async (req, res) => {
   }
 };
 
-// Sign Up: Verify OTP (Corrected)
 export const verifySignUpOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -103,13 +98,22 @@ export const verifySignUpOTP = async (req, res) => {
     const user = await User.create(otpRecord.userData);
     await OTP.findOneAndDelete({ email, type: "signup" });
     let token = await genToken(user._id);
-    res.cookie("token", token, {
+    
+    // ✅ FIXED: Dynamic cookie domain for production
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: "None",
-      secure: true,
-      domain: '.onrender.com'
-    });
+      sameSite: isProduction ? "None" : "Lax",
+      secure: isProduction
+    };
+    
+    if (isProduction && process.env.COOKIE_DOMAIN) {
+      cookieOptions.domain = process.env.COOKIE_DOMAIN;
+    }
+    
+    res.cookie("token", token, cookieOptions);
+    
     return res.status(201).json({
       message: "Account created successfully",
       token: token,
@@ -127,7 +131,6 @@ export const verifySignUpOTP = async (req, res) => {
   }
 };
 
-// Login: Send OTP
 export const sendLoginOTP = async (req, res) => {
   try {
     const { email } = req.body;
@@ -150,7 +153,6 @@ export const sendLoginOTP = async (req, res) => {
   }
 };
 
-// Login: Verify OTP (Corrected)
 export const verifyLoginOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -174,13 +176,22 @@ export const verifyLoginOTP = async (req, res) => {
     }
     await OTP.findOneAndDelete({ email, type: "login" });
     let token = await genToken(user._id);
-    res.cookie("token", token, {
+    
+    // ✅ FIXED: Dynamic cookie domain
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: "None",
-      secure: true,
-      domain: '.onrender.com'
-    });
+      sameSite: isProduction ? "None" : "Lax",
+      secure: isProduction
+    };
+    
+    if (isProduction && process.env.COOKIE_DOMAIN) {
+      cookieOptions.domain = process.env.COOKIE_DOMAIN;
+    }
+    
+    res.cookie("token", token, cookieOptions);
+    
     return res.status(200).json({
       message: "Login successful",
       token: token,
@@ -198,7 +209,6 @@ export const verifyLoginOTP = async (req, res) => {
   }
 };
 
-// Resend OTP
 export const resendOTP = async (req, res) => {
   try {
     const { email, type } = req.body;
@@ -222,14 +232,19 @@ export const resendOTP = async (req, res) => {
   }
 };
 
-// Logout
 export const logOut = async (req, res) => {
   try {
-    res.clearCookie("token", {
-      secure: true,
-      sameSite: "None",
-      domain: '.onrender.com',
-    });
+    const isProduction = process.env.NODE_ENV === 'production';
+    const clearOptions = {
+      secure: isProduction,
+      sameSite: isProduction ? "None" : "Lax"
+    };
+    
+    if (isProduction && process.env.COOKIE_DOMAIN) {
+      clearOptions.domain = process.env.COOKIE_DOMAIN;
+    }
+    
+    res.clearCookie("token", clearOptions);
     return res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
     console.log(error);
