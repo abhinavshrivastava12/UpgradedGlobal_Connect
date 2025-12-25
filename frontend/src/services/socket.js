@@ -4,6 +4,7 @@ import { io } from "socket.io-client";
 let socket;
 
 export const initSocket = (serverUrl, { userId, email, token }) => {
+  console.log('🔗 SERVER_URL:', SERVER_URL); // 
   if (!userId || !token) return null; // prevent unauthed socket
 
   socket = io(serverUrl, {
