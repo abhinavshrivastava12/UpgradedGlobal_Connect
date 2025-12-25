@@ -8,7 +8,7 @@ export const initSocket = (serverUrl, { userId, email, token }) => {
 
   socket = io(serverUrl, {
     withCredentials: true,
-    autoConnect: false, // connect manually after registration
+    autoConnect: true, // connect manually after registration
   });
 
   const register = () => {
