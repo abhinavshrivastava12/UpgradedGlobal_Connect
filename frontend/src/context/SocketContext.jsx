@@ -27,7 +27,7 @@ export const SocketProvider = ({ children, user }) => {
 
     console.log('🔌 Connecting to socket server...');
     
-    const newSocket = io('http://localhost:8000', {
+    const newSocket = io(import.meta.env.VITE_SERVER_URL || 'http://localhost:8000', {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,

@@ -5,7 +5,7 @@ import io from 'socket.io-client';
 const CallContext = createContext();
 
 // ✅ FIXED: Backend ka correct URL use karo
-const socket = io('http://localhost:8000', {
+const socket = io(import.meta.env.VITE_SERVER_URL || 'http://localhost:8000', {
   withCredentials: true,
   transports: ['websocket', 'polling']
 });
