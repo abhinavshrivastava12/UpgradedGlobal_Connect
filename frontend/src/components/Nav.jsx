@@ -1,234 +1,472 @@
-import React, { useContext, useEffect, useState } from 'react'
-import logo2 from "../assets/GC.jpg"
-import { IoSearchSharp } from "react-icons/io5";
-import { TiHome } from "react-icons/ti";
-import { FaUserGroup } from "react-icons/fa6";
-import { IoNotificationsSharp } from "react-icons/io5";
-import dp from "../assets/dp.webp"
-import { userDataContext } from '../context/UserContext';
-import { authDataContext } from '../context/AuthContext';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Video, Send, Users, Wifi, WifiOff, Image, X } from 'lucide-react';
+import io from 'socket.io-client';
 import axios from 'axios';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { IoChatbubbleEllipsesSharp } from "react-icons/io5";
-import { MdWork } from "react-icons/md";
-import { Bookmark, BarChart3 } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns'; // ✅ ADDED THIS IMPORT
+import VideoCallModal from './VideoCallModal';
 
-function Nav() {
-    const [activeSearch, setActiveSearch] = useState(false)
-    const { userData, setUserData, handleGetProfile } = useContext(userDataContext)
-    const [showPopup, setShowPopup] = useState(false)
-    const navigate = useNavigate()
-    const location = useLocation()
-    const { serverUrl } = useContext(authDataContext)
-    const [searchInput, setSearchInput] = useState("")
-    const [searchData, setSearchData] = useState([])
+const dp = 'https://ui-avatars.com/api/?name=User&size=200&background=6366f1&color=fff';
 
-    const handleSignOut = async () => {
-        try {
-            await axios.get(serverUrl + "/api/auth/logout", { withCredentials: true })
-            setUserData(null)
-            navigate("/login")
-        } catch (error) {
-            console.log(error);
-        }
-    }
+const socket = io('http://localhost:8000', {
+  withCredentials: true,
+  transports: ['websocket', 'polling']  
+});
 
-    // FIX: Added a conditional check to prevent the API call if searchInput is empty.
-    const handleSearch = async () => {
-        // If the search input is empty or just whitespace, do not make the API call.
-        if (!searchInput.trim()) {
-            setSearchData([]) // Clear previous search results if the input is cleared
-            return;
-        }
-        try {
-            let result = await axios.get(`${serverUrl}/api/user/search?query=${searchInput}`, { withCredentials: true })
-            setSearchData(result.data)
-        } catch (error) {
-            setSearchData([])
-        }
-    }
+function ChatWindow() {
+  const [messages, setMessages] = useState([]);
+  const [message, setMessage] = useState('');
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [conversations, setConversations] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [typing, setTyping] = useState(null);
+  const [connectionStatus, setConnectionStatus] = useState('disconnected');
+  const [loading, setLoading] = useState(false);
+  const [showVideoCall, setShowVideoCall] = useState(false);
+  
+  const messageEndRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+  const fileInputRef = useRef(null);
+  
+  const token = localStorage.getItem('token');
+  const userId = localStorage.getItem('userId');
 
-    useEffect(() => {
-        handleSearch()
-    }, [searchInput])
+  const scrollToBottom = useCallback(() => {
+    messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
 
-    const isActive = (path) => location.pathname === path
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
 
-    return (
-        <div className='w-full h-[80px] bg-gradient-to-br from-[#1A1F71] to-[#2C2C2C] fixed top-0 shadow-md flex items-center px-4 lg:px-12 z-[80]'>
-            {/* Left: Logo & Search */}
-            <div className='flex items-center gap-4 flex-1 rounded-md'>
-                <img
-                    src={logo2}
-                    alt="Logo"
-                    className='w-[50px] cursor-pointer rounded-lg'
-                    onClick={() => {
-                        setActiveSearch(false)
-                        navigate("/")
-                    }}
-                />
-                {!activeSearch && (
-                    <IoSearchSharp
-                        className='w-[23px] h-[23px] text-gray-300 lg:hidden cursor-pointer'
-                        onClick={() => setActiveSearch(true)}
-                    />
-                )}
-                <form
-                    className={`bg-[#f0efe7] h-[40px] rounded-md flex items-center gap-2 px-3 transition-all duration-300 ${activeSearch ? "flex" : "hidden"} lg:flex w-[200px] lg:w-[350px]`}
-                >
-                    <IoSearchSharp className='w-[20px] h-[20px] text-gray-600' />
-                    <input
-                        type="text"
-                        placeholder='Search users...'
-                        className='w-full bg-transparent outline-none text-gray-800'
-                        value={searchInput}
-                        onChange={(e) => setSearchInput(e.target.value)}
-                    />
-                </form>
-            </div>
+  const loadInbox = async () => {
+    try {
+      const config = {
+        headers: { 'Authorization': `Bearer ${token}` },
+        withCredentials: true
+      };
+      
+      const response = await axios.get('/api/chat/inbox', config);
+      if (response.data.success) {
+        setConversations(response.data.data || []);
+      }
+    } catch (error) {
+      console.error('Load inbox error:', error);
+    }
+  };
 
-            {/* Search Results */}
-            {searchData.length > 0 && (
-                <div className="absolute top-[65px] left-0 lg:left-12 shadow-lg w-full lg:w-[500px] bg-white rounded-lg border border-gray-200 overflow-auto max-h-[250px] z-[90]">
-                    {searchData.map((sea) => (
-                        <div
-                            key={sea._id}
-                            className="flex gap-3 items-center border-b border-gray-100 px-3 py-2 hover:bg-gray-100 cursor-pointer transition"
-                            onClick={() => handleGetProfile(sea.userName)}
-                        >
-                            <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
-                                <img
-                                    src={sea.profileImage || dp}
-                                    alt=""
-                                    className="w-full h-full object-cover"
-                                />
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="text-sm font-medium text-gray-800">
-                                    {`${sea.firstName} ${sea.lastName}`}
-                                </span>
-                                <span className="text-xs text-gray-500 truncate max-w-[200px]">
-                                    {sea.headline}
-                                </span>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
+  const loadChatHistory = async (otherUserId) => {
+    try {
+      setLoading(true);
+      const config = {
+        headers: { 'Authorization': `Bearer ${token}` },
+        withCredentials: true
+      };
+      
+      const response = await axios.get(`/api/chat/history/${otherUserId}`, config);
+      if (response.data.success) {
+        setMessages(response.data.items || []);
+      }
+    } catch (error) {
+      console.error('Load history error:', error);
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-            {/* Right: Nav Items */}
-            <div className='flex items-center gap-6'>
-                <div
-                    className={`hidden lg:flex flex-col items-center cursor-pointer ${isActive("/") ? "text-yellow-400 font-semibold" : "text-gray-300"}`}
-                    onClick={() => navigate("/")}
-                >
-                    <TiHome className='w-[23px] h-[23px]' />
-                    <span className='text-sm'>Home</span>
-                </div>
-                <div
-                    className={`hidden md:flex flex-col items-center cursor-pointer ${isActive("/network") ? "text-yellow-400 font-semibold" : "text-gray-300"}`}
-                    onClick={() => navigate("/network")}
-                >
-                    <FaUserGroup className='w-[23px] h-[23px]' />
-                    <span className='text-sm'>My Networks</span>
-                </div>
+  useEffect(() => {
+    if (!token || !userId) {
+      console.error("❌ No auth data");
+      return;
+    }
 
+    const onConnect = () => {
+      console.log('✅ Socket Connected:', socket.id);
+      setConnectionStatus('connected');
+      socket.emit('join', { token, userId });
+      loadInbox();
+    };
 
-                <div
-    className={`flex flex-col items-center cursor-pointer ${
-        isActive("/chat") ? "text-yellow-400 font-semibold" : "text-gray-300"
-    }`}
-    onClick={() => navigate("/chat")}
->
-    <IoChatbubbleEllipsesSharp className='w-[23px] h-[23px]' />
-    <span className='hidden md:block text-sm'>Chat</span>
-</div>
+    const onDisconnect = (reason) => {
+      console.log('❌ Socket Disconnected:', reason);
+      setConnectionStatus('disconnected');
+    };
 
-<div
-  className={`flex flex-col items-center cursor-pointer ${
-    isActive("/jobs") ? "text-yellow-400 font-semibold" : "text-gray-300"
-  }`}
-  onClick={() => navigate("/jobs")}
->
-  <MdWork className="w-[23px] h-[23px]" />
-  <span className="hidden md:block text-sm">Jobs</span>
-</div>
+    const onReceiveMessage = (msg) => {
+      console.log('📨 Message received:', msg);
+      
+      if (selectedUser && (msg.from._id === selectedUser._id || msg.to._id === selectedUser._id)) {
+        setMessages(prev => [...prev, msg]);
+      }
+      
+      loadInbox();
+    };
 
-                <div
-                    className={`flex flex-col items-center cursor-pointer ${isActive("/notification") ? "text-yellow-400 font-semibold" : "text-gray-300"}`}
-                    onClick={() => navigate("/notification")}
-                >
-                    <IoNotificationsSharp className='w-[23px] h-[23px]' />
-                    <span className='hidden md:block text-sm'>Notifications</span>
-                </div>
+    const onUserTyping = (data) => {
+      if (selectedUser && data.userId === selectedUser._id) {
+        setTyping(data);
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => setTyping(null), 3000);
+      }
+    };
 
-                {/* Profile Picture */}
-                <div
-                    className='w-[50px] h-[50px] rounded-full overflow-hidden cursor-pointer border-2 border-yellow-400'
-                    onClick={() => setShowPopup(prev => !prev)}
-                >
-                    <img src={userData?.profileImage || dp} alt="Profile" className='w-full h-full object-cover' />
-                </div>
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    socket.on('receiveMessage', onReceiveMessage);
+    socket.on('userTyping', onUserTyping);
+    socket.on('userStoppedTyping', () => setTyping(null));
 
-                {/* Job Links */}
-                {/* <div className='flex flex-col gap-1 text-gray-300'>
-                    <Link to="/jobs" className="hover:text-yellow-400">Jobs</Link>
-                    <Link to="/jobs/new" className="hover:text-yellow-400">Post Job</Link>
-                </div> */}
+    if (!socket.connected) {
+      socket.connect();
+    } else {
+      onConnect();
+    }
 
-            </div>
-            <div
-            className={`flex flex-col items-center cursor-pointer ${
-                isActive("/bookmarks") ? "text-yellow-400 font-semibold" : "text-gray-300"
-            }`}
-            onClick={() => navigate("/bookmarks")}
-            >
-            <Bookmark className='w-[23px] h-[23px]' />
-            <span className='hidden md:block text-sm'>Saved</span>
+    return () => {
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+      socket.off('receiveMessage', onReceiveMessage);
+      socket.off('userTyping', onUserTyping);
+      socket.off('userStoppedTyping');
+      clearTimeout(typingTimeoutRef.current);
+    };
+  }, [userId, token, selectedUser]);
+
+  const handleSelectUser = (conv) => {
+    const user = conv.userInfo;
+    setSelectedUser(user);
+    setMessages([]);
+    setTyping(null);
+    loadChatHistory(user._id);
+  };
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+      setSelectedImage(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if ((!message.trim() && !selectedImage) || !selectedUser) return;
+
+    let imageUrl = null;
+
+    if (selectedImage) {
+      try {
+        const formData = new FormData();
+        formData.append('image', selectedImage);
+        
+        const config = {
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          },
+          withCredentials: true
+        };
+
+        const response = await axios.post('/api/upload/image', formData, config);
+        imageUrl = response.data.url;
+      } catch (error) {
+        console.error('Image upload error:', error);
+        alert('Failed to upload image');
+        return;
+      }
+    }
+
+    const msgData = {
+      from: userId,
+      to: selectedUser._id,
+      text: message.trim(),
+      image: imageUrl,
+      timestamp: new Date().toISOString()
+    };
+
+    socket.emit('sendMessage', msgData);
+    
+    setMessage('');
+    handleRemoveImage();
+  };
+
+  const handleTyping = (e) => {
+    setMessage(e.target.value);
+    if (selectedUser) {
+      socket.emit('typing', selectedUser._id);
+    }
+  };
+
+  const handleVideoCall = () => {
+    console.log('📹 Opening video call with:', selectedUser);
+    setShowVideoCall(true);
+  };
+
+  const getUserName = (user) => {
+    if (!user) return 'Unknown';
+    if (user.firstName && user.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    }
+    return user.userName || 'User';
+  };
+
+  return (
+    <>
+      <div className="flex h-screen bg-slate-900 pt-20">
+        
+        {/* Sidebar - Conversations */}
+        <aside className="w-80 border-r border-slate-700 bg-slate-800 flex flex-col">
+          <div className="p-4 border-b border-slate-700">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold text-lg text-white flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Messages
+              </h3>
             </div>
-
-            <div
-            className={`flex flex-col items-center cursor-pointer ${
-                isActive("/analytics") ? "text-purple-400 font-semibold" : "text-gray-300"
-            }`}
-            onClick={() => navigate("/analytics")}
-            >
-            <BarChart3 className='w-[23px] h-[23px]' />
-            <span className='hidden md:block text-sm'>Analytics</span>
+            
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+              connectionStatus === 'connected' 
+                ? 'bg-green-900 text-green-300' 
+                : 'bg-red-900 text-red-300'
+            }`}>
+              {connectionStatus === 'connected' ? 
+                <Wifi className="w-4 h-4" /> : 
+                <WifiOff className="w-4 h-4" />
+              }
+              {connectionStatus}
             </div>
+          </div>
 
+          <div className="flex-1 overflow-y-auto">
+            {conversations.length === 0 ? (
+              <div className="p-4 text-center text-gray-400">
+                No conversations yet
+              </div>
+            ) : (
+              <ul className="p-2 space-y-1">
+                {conversations.map((conv) => (
+                  <li
+                    key={conv._id}
+                    className={`p-3 rounded-lg cursor-pointer transition-all hover:bg-slate-700 ${
+                      selectedUser?._id === conv.userInfo._id ? 'bg-purple-900 border border-purple-700' : ''
+                    }`}
+                    onClick={() => handleSelectUser(conv)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-purple-500">
+                          <img 
+                            src={conv.userInfo.profileImage || dp}
+                            alt={getUserName(conv.userInfo)}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate text-white">
+                          {getUserName(conv.userInfo)}
+                        </div>
+                        <div className="text-sm text-gray-400 truncate">
+                          {conv.lastMessage?.text || 'Image'}
+                        </div>
+                      </div>
+                      {conv.unread > 0 && (
+                        <div className="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-bold">
+                          {conv.unread}
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </aside>
 
-            {/* Profile Popup */}
-            {showPopup && (
-                <div className='absolute top-[75px] right-4 lg:right-12 w-[300px] bg-white shadow-lg rounded-lg p-4 flex flex-col items-center gap-4 z-[90]'>
-                    <div className='w-[70px] h-[70px] rounded-full overflow-hidden'>
-                        <img src={userData?.profileImage || dp} alt="" className='w-full h-full object-cover' />
-                    </div>
-                    <div className='text-lg font-semibold text-gray-800'>{`${userData.firstName} ${userData.lastName}`}</div>
-                    <button
-                        className='w-full h-[40px] rounded-full border border-yellow-400  bg-gradient-to-r from-[#FFD700] to-[#FFCC00] text-[#1A1F71] hover:bg-yellow-50'
-                        onClick={() => handleGetProfile(userData.userName)}
-                    >
-                        View Profile
-                    </button>
-                    <div className='w-full h-[1px] bg-gray-300'></div>
-                    <div
-                        className='flex items-center gap-2 text-gray-600 cursor-pointer w-full hover:text-yellow-400'
-                        onClick={() => navigate("/network")}
-                    >
-                        <FaUserGroup className='w-[20px] h-[20px]' />
-                        <span>My Networks</span>
-                    </div>
-                    <button
-                        className='w-full h-[40px] rounded-full border border-red-500  bg-gradient-to-r from-[#aa0c0c] to-[#d23805] text-[#f1f2ff] hover:bg-red-50'
-                        onClick={handleSignOut}
-                    >
-                        Sign Out
-                    </button>
-                </div>
-            )}
-        </div>
-    )
+        {/* Main Chat */}
+        <main className="flex-1 flex flex-col bg-slate-900">
+          {selectedUser ? (
+            <>
+              <header className="border-b border-slate-700 p-4 bg-slate-800">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-purple-500">
+                      <img 
+                        src={selectedUser.profileImage || dp}
+                        alt={getUserName(selectedUser)}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div>
+                      <h1 className="font-semibold text-lg text-white">
+                        {getUserName(selectedUser)}
+                      </h1>
+                      <span className="text-sm text-gray-400">
+                        @{selectedUser.userName}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Video Call Button */}
+                  <button 
+                    onClick={handleVideoCall}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all"
+                  >
+                    <Video className="w-4 h-4" />
+                    Video Call
+                  </button>
+                </div>
+              </header>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {loading ? (
+                  <div className="text-center text-gray-400">Loading messages...</div>
+                ) : messages.length === 0 ? (
+                  <div className="text-center text-gray-400">No messages yet. Start the conversation!</div>
+                ) : (
+                  messages.map((msg, idx) => {
+                    const isMine = msg.from._id === userId || msg.from === userId;
+                    const sender = isMine ? 'You' : getUserName(msg.from);
+                    
+                    return (
+                      <div key={msg._id || idx} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-xs lg:max-w-md ${isMine ? 'order-2' : 'order-1'}`}>
+                          {!isMine && (
+                            <div className="text-xs text-gray-400 mb-1">{sender}</div>
+                          )}
+                          <div className={`px-4 py-2 rounded-lg ${
+                            isMine 
+                              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' 
+                              : 'bg-slate-700 text-gray-100'
+                          }`}>
+                            {msg.image && (
+                              <img 
+                                src={msg.image} 
+                                alt="Shared" 
+                                className="rounded-lg mb-2 max-w-full cursor-pointer"
+                                onClick={() => window.open(msg.image, '_blank')}
+                              />
+                            )}
+                            {msg.text && <div className="text-sm">{msg.text}</div>}
+                          </div>
+                          {/* ✅ FIXED: Read receipts with proper timestamp */}
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-xs text-gray-500">
+                              {msg.timestamp ? formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true }) : 'Just now'}
+                            </span>
+                            {isMine && (
+                              <span className={`text-xs ${msg.readAt ? 'text-blue-400' : 'text-gray-500'}`}>
+                                {msg.readAt ? '✓✓' : '✓'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                
+                {/* Typing Indicator */}
+                {typing && typing.userId === selectedUser._id && (
+                  <div className="flex justify-start">
+                    <div className="bg-slate-700 rounded-2xl px-4 py-3 flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" />
+                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                      </div>
+                      <span className="text-sm text-gray-300">typing...</span>
+                    </div>
+                  </div>
+                )}
+                
+                <div ref={messageEndRef} />
+              </div>
+
+              <div className="border-t border-slate-700 p-4 bg-slate-800">
+                {imagePreview && (
+                  <div className="mb-2 relative inline-block">
+                    <img 
+                      src={imagePreview} 
+                      alt="Preview" 
+                      className="h-20 rounded-lg"
+                    />
+                    <button
+                      onClick={handleRemoveImage}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+                
+                <div className="flex gap-2">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 flex items-center gap-2"
+                  >
+                    <Image className="w-4 h-4" />
+                  </button>
+                  <input
+                    type="text"
+                    placeholder="Type a message..."
+                    value={message}
+                    onChange={handleTyping}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage(e)}
+                    disabled={loading}
+                    className="flex-1 px-4 py-2 border border-slate-600 bg-slate-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  <button 
+                    onClick={handleSendMessage}
+                    disabled={(!message.trim() && !selectedImage) || loading} 
+                    className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                  >
+                    <Send className="w-4 h-4" />
+                    Send
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <Users className="w-12 h-12 mx-auto mb-4 text-gray-600" />
+                <h2 className="text-xl font-semibold mb-2 text-gray-300">Welcome to Chat</h2>
+                <p className="text-gray-500">Select a conversation to start chatting</p>
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* Video Call Modal */}
+      {showVideoCall && selectedUser && (
+        <VideoCallModal
+          isOpen={showVideoCall}
+          onClose={() => setShowVideoCall(false)}
+          recipientId={selectedUser._id}
+          recipientName={getUserName(selectedUser)}
+          currentUserId={userId}
+        />
+      )}
+    </>
+  );
 }
 
-export default Nav;
+export default ChatWindow;

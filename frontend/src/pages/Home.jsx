@@ -1,5 +1,4 @@
 import React, { useContext, useEffect, useRef, useState } from "react";
-import dp from "../assets/dp.webp";
 import { FiPlus } from "react-icons/fi";
 import { userDataContext } from "../context/UserContext";
 import EditProfile from "../components/EditProfile";
@@ -14,6 +13,8 @@ import AIChat from "../components/AIChat";
 import Stories from "../components/Stories";
 import TrendingHashtags from '../components/TrendingHashtags';
 import LiveStatus from '../components/LiveStatus';
+
+const dp = 'https://ui-avatars.com/api/?name=User&size=200&background=6366f1&color=fff';
 
 function Home() {
   const { userData = {}, edit, setEdit, postData, getPost, handleGetProfile } = useContext(userDataContext);

@@ -2,10 +2,11 @@ import React, { useContext, useEffect, useState } from 'react';
 import Nav from '../components/Nav';
 import axios from 'axios';
 import { authDataContext } from '../context/AuthContext';
-import dp from "../assets/dp.webp";
 import { IoIosCheckmarkCircleOutline } from "react-icons/io";
 import { RxCrossCircled } from "react-icons/rx";
 import io from "socket.io-client";
+
+const dp = 'https://ui-avatars.com/api/?name=User&size=200&background=6366f1&color=fff';
 
 const socket = io();
 

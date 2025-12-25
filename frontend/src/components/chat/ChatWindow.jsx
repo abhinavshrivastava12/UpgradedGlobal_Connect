@@ -2,13 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Video, Send, Users, Wifi, WifiOff, Image, X } from 'lucide-react';
 import io from 'socket.io-client';
 import axios from 'axios';
-import dp from '../../assets/dp.webp';
+import { formatDistanceToNow } from 'date-fns';
 import VideoCallModal from '../VideoCallModal';
 
-const socket = io('http://localhost:8000', {
-  withCredentials: true,
-  transports: ['websocket', 'polling']
-});
+const dp = 'https://ui-avatars.com/api/?name=User&size=200&background=6366f1&color=fff';
 
 function ChatWindow() {
   const [messages, setMessages] = useState([]);
@@ -25,6 +22,9 @@ function ChatWindow() {
   const messageEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
+  
+  // ✅ FIX: Socket ko useRef se manage karo
+  const socketRef = useRef(null);
   
   const token = localStorage.getItem('token');
   const userId = localStorage.getItem('userId');
@@ -79,6 +79,17 @@ function ChatWindow() {
       return;
     }
 
+    // ✅ FIX: Socket initialization
+    if (!socketRef.current) {
+      console.log('🔌 Initializing socket connection...');
+      socketRef.current = io('http://localhost:8000', {
+        withCredentials: true,
+        transports: ['websocket', 'polling']
+      });
+    }
+
+    const socket = socketRef.current;
+
     const onConnect = () => {
       console.log('✅ Socket Connected:', socket.id);
       setConnectionStatus('connected');
@@ -121,6 +132,7 @@ function ChatWindow() {
       onConnect();
     }
 
+    // ✅ FIX: Proper cleanup
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
@@ -130,6 +142,17 @@ function ChatWindow() {
       clearTimeout(typingTimeoutRef.current);
     };
   }, [userId, token, selectedUser]);
+
+  // ✅ FIX: Component unmount par socket disconnect karo
+  useEffect(() => {
+    return () => {
+      if (socketRef.current) {
+        console.log('🔌 Disconnecting socket on unmount...');
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
+  }, []);
 
   const handleSelectUser = (conv) => {
     const user = conv.userInfo;
@@ -191,7 +214,8 @@ function ChatWindow() {
       timestamp: new Date().toISOString()
     };
 
-    socket.emit('sendMessage', msgData);
+    // ✅ FIX: Use socketRef.current
+    socketRef.current?.emit('sendMessage', msgData);
     
     setMessage('');
     handleRemoveImage();
@@ -200,7 +224,8 @@ function ChatWindow() {
   const handleTyping = (e) => {
     setMessage(e.target.value);
     if (selectedUser) {
-      socket.emit('typing', selectedUser._id);
+      // ✅ FIX: Use socketRef.current
+      socketRef.current?.emit('typing', selectedUser._id);
     }
   };
 
@@ -220,7 +245,7 @@ function ChatWindow() {
   return (
     <>
       <div className="flex h-screen bg-slate-900 pt-20">
-        
+        {/* Rest of your JSX remains same... */}
         {/* Sidebar - Conversations */}
         <aside className="w-80 border-r border-slate-700 bg-slate-800 flex flex-col">
           <div className="p-4 border-b border-slate-700">
@@ -314,7 +339,6 @@ function ChatWindow() {
                     </div>
                   </div>
                   
-                  {/* ✅ Fixed Video Call Button */}
                   <button 
                     onClick={handleVideoCall}
                     className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all"
@@ -356,23 +380,31 @@ function ChatWindow() {
                             )}
                             {msg.text && <div className="text-sm">{msg.text}</div>}
                           </div>
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-xs text-gray-500">
+                              {msg.timestamp ? formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true }) : 'Just now'}
+                            </span>
+                            {isMine && (
+                              <span className={`text-xs ${msg.readAt ? 'text-blue-400' : 'text-gray-500'}`}>
+                                {msg.readAt ? '✓✓' : '✓'}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
                   })
                 )}
                 
-                {typing && (
+                {typing && typing.userId === selectedUser._id && (
                   <div className="flex justify-start">
-                    <div className="rounded-lg px-4 py-2 bg-slate-700">
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-1">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                        </div>
-                        <span className="text-xs text-gray-300">typing...</span>
+                    <div className="bg-slate-700 rounded-2xl px-4 py-3 flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" />
+                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
                       </div>
+                      <span className="text-sm text-gray-300">typing...</span>
                     </div>
                   </div>
                 )}
@@ -417,11 +449,12 @@ function ChatWindow() {
                     value={message}
                     onChange={handleTyping}
                     onKeyDown={(e) => e.key === 'Enter' && handleSendMessage(e)}
+                    disabled={loading}
                     className="flex-1 px-4 py-2 border border-slate-600 bg-slate-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                   <button 
                     onClick={handleSendMessage}
-                    disabled={!message.trim() && !selectedImage} 
+                    disabled={(!message.trim() && !selectedImage) || loading} 
                     className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
                   >
                     <Send className="w-4 h-4" />
@@ -442,7 +475,6 @@ function ChatWindow() {
         </main>
       </div>
 
-      {/* ✅ Video Call Modal */}
       {showVideoCall && selectedUser && (
         <VideoCallModal
           isOpen={showVideoCall}

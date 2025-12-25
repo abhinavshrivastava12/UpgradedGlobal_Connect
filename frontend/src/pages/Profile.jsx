@@ -1,11 +1,12 @@
 import React, { useContext, useEffect, useState } from 'react';
 import Nav from '../components/Nav';
-import dp from "../assets/dp.webp";
 import { HiPencil } from "react-icons/hi2";
 import { userDataContext } from '../context/UserContext';
 import EditProfile from '../components/EditProfile';
 import Post from '../components/Post';
 import ConnectionButton from '../components/ConnectionButton';
+
+const dp = 'https://ui-avatars.com/api/?name=User&size=200&background=6366f1&color=fff';
 
 function Profile() {
   const { userData, edit, setEdit, postData, profileData } = useContext(userDataContext);

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, X, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, X, Eye, ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import axios from 'axios';
-import dp from '../assets/dp.webp';
+
+const dp = 'https://ui-avatars.com/api/?name=User&size=200&background=6366f1&color=fff';
 
 function Stories() {
   const [stories, setStories] = useState([]);
@@ -15,12 +16,26 @@ function Stories() {
   const [storyText, setStoryText] = useState('');
   const [uploading, setUploading] = useState(false);
   const [viewsCount, setViewsCount] = useState(0);
+  const [showViewsList, setShowViewsList] = useState(false);
+  const [viewsList, setViewsList] = useState([]);
   
   const fileInputRef = useRef();
+  const progressRef = useRef(null);
 
   useEffect(() => {
     loadStories();
   }, []);
+
+  // ✅ Auto-progress story
+  useEffect(() => {
+    if (!showStoryModal || !selectedStory) return;
+
+    const timer = setTimeout(() => {
+      handleNextStory();
+    }, 5000); // 5 seconds per story
+
+    return () => clearTimeout(timer);
+  }, [showStoryModal, selectedStory, currentStoryIndex]);
 
   const loadStories = async () => {
     try {
@@ -93,6 +108,7 @@ function Stories() {
     setSelectedStory(storyGroup.stories[index]);
     setShowStoryModal(true);
     setViewsCount(storyGroup.stories[index].views?.length || 0);
+    setViewsList(storyGroup.stories[index].views || []);
 
     try {
       const token = localStorage.getItem('token');
@@ -107,10 +123,7 @@ function Stories() {
         config
       );
       
-      // Reload to get updated view count
       loadStories();
-      // Update views count immediately
-      setViewsCount(prev => prev + 1);
     } catch (error) {
       console.error('View story error:', error);
     }
@@ -124,7 +137,7 @@ function Stories() {
       setCurrentStoryIndex(nextIndex);
       setSelectedStory(selectedStoryGroup.stories[nextIndex]);
       setViewsCount(selectedStoryGroup.stories[nextIndex].views?.length || 0);
-      handleViewStory(selectedStoryGroup, nextIndex);
+      setViewsList(selectedStoryGroup.stories[nextIndex].views || []);
     } else {
       handleCloseStory();
     }
@@ -138,7 +151,7 @@ function Stories() {
       setCurrentStoryIndex(prevIndex);
       setSelectedStory(selectedStoryGroup.stories[prevIndex]);
       setViewsCount(selectedStoryGroup.stories[prevIndex].views?.length || 0);
-      handleViewStory(selectedStoryGroup, prevIndex);
+      setViewsList(selectedStoryGroup.stories[prevIndex].views || []);
     }
   };
 
@@ -148,6 +161,27 @@ function Stories() {
     setSelectedStoryGroup(null);
     setCurrentStoryIndex(0);
     setViewsCount(0);
+    setViewsList([]);
+    setShowViewsList(false);
+  };
+
+  const loadStoryViews = async () => {
+    if (!selectedStory) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const config = {
+        headers: { 'Authorization': `Bearer ${token}` },
+        withCredentials: true
+      };
+
+      const response = await axios.get(`/api/stories/${selectedStory._id}/views`, config);
+      if (response.data.success) {
+        setViewsList(response.data.views);
+      }
+    } catch (error) {
+      console.error('Load views error:', error);
+    }
   };
 
   return (
@@ -259,13 +293,24 @@ function Stories() {
       {/* View Story Modal - FIXED */}
       {showStoryModal && selectedStory && (
         <>
-          <div 
-            className="fixed inset-0 bg-black z-50"
-          />
+          <div className="fixed inset-0 bg-black z-50" />
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="relative w-full max-w-md h-screen bg-black">
               
-              {/* ✅ Close Button - Top Right Corner */}
+              {/* ✅ Progress Bars */}
+              <div className="absolute top-2 left-0 right-0 z-20 flex gap-1 px-4">
+                {selectedStoryGroup?.stories.map((_, idx) => (
+                  <div key={idx} className="flex-1 h-0.5 bg-white/30 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full bg-white transition-all duration-5000 ${
+                        idx === currentStoryIndex ? 'w-full' : idx < currentStoryIndex ? 'w-full' : 'w-0'
+                      }`}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* ✅ Close Button - Top Right */}
               <button
                 onClick={handleCloseStory}
                 className="absolute top-4 right-4 z-20 p-2 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
@@ -274,7 +319,7 @@ function Stories() {
               </button>
 
               {/* Story Header */}
-              <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent z-10">
+              <div className="absolute top-8 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent z-10">
                 <div className="flex items-center gap-3">
                   <img
                     src={selectedStoryGroup?.user.profileImage || dp}
@@ -289,13 +334,20 @@ function Stories() {
                       {new Date(selectedStory.createdAt).toLocaleTimeString()}
                     </p>
                   </div>
-                  {/* ✅ View Count with Icon */}
-                  <div className="ml-auto flex items-center gap-2 bg-black/50 px-3 py-1 rounded-full">
+                  
+                  {/* ✅ View Count Button */}
+                  <button
+                    onClick={() => {
+                      setShowViewsList(!showViewsList);
+                      if (!showViewsList) loadStoryViews();
+                    }}
+                    className="ml-auto flex items-center gap-2 bg-black/50 px-3 py-1 rounded-full hover:bg-black/70 transition-colors"
+                  >
                     <Eye className="w-4 h-4 text-white" />
                     <span className="text-white text-sm font-semibold">
                       {viewsCount}
                     </span>
-                  </div>
+                  </button>
                 </div>
               </div>
 
@@ -342,6 +394,40 @@ function Stories() {
                 >
                   <ChevronRight className="w-6 h-6 text-white" />
                 </button>
+              )}
+
+              {/* ✅ Views List Popup */}
+              {showViewsList && (
+                <div className="absolute bottom-0 left-0 right-0 bg-slate-800 rounded-t-2xl p-4 max-h-96 overflow-y-auto z-30">
+                  <div className="flex justify-between items-center mb-4">
+                    <h4 className="text-white font-semibold flex items-center gap-2">
+                      <Users className="w-5 h-5" />
+                      Viewed by {viewsList.length}
+                    </h4>
+                    <button onClick={() => setShowViewsList(false)}>
+                      <X className="w-5 h-5 text-gray-400 hover:text-white" />
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {viewsList.map((view) => (
+                      <div key={view._id} className="flex items-center gap-3">
+                        <img
+                          src={view.user?.profileImage || dp}
+                          alt=""
+                          className="w-10 h-10 rounded-full border-2 border-purple-500"
+                        />
+                        <div>
+                          <p className="text-white font-medium">
+                            {view.user?.firstName} {view.user?.lastName}
+                          </p>
+                          <p className="text-gray-400 text-xs">
+                            {new Date(view.viewedAt).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           </div>

@@ -32,16 +32,16 @@ export default defineConfig({
   },
 
   // Build optimization
-  build: {
-    outDir: 'dist',
-    sourcemap: false,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          socket: ['socket.io-client'],
+      build: {
+        outDir: 'dist',
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              vendor: ['react', 'react-dom'],
+              router: ['react-router-dom'],
+              socket: ['socket.io-client']
+            }
+          }
         }
       }
-    }
-  }
-});
+    });
