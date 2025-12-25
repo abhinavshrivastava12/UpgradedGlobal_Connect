@@ -1,5 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { authDataContext } from './AuthContext';
+import React, { createContext, useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,7 +8,6 @@ function UserContext({ children }) {
   const [userData, setUserData] = useState(null);
   const [edit, setEdit] = useState(false);
   const [postData, setPostData] = useState([]); 
-  const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const navigate = useNavigate();
@@ -70,22 +68,8 @@ function UserContext({ children }) {
     }
   };
 
-  const handleGetProfile = async (userName) => {
-    try {
-      const token = localStorage.getItem('token');
-      const config = {
-        headers: { 'Authorization': `Bearer ${token}` },
-        withCredentials: true
-      };
-      
-      const result = await axios.get(`/api/user/profile/${userName}`, config);
-      setProfileData(result.data);
-      navigate("/profile");
-    } catch (error) {
-      console.error("Profile error:", error);
-      alert("Failed to load profile");
-    }
-  };
+  // ✅ REMOVED: handleGetProfile function (no longer needed)
+  // Profile page will handle its own data fetching
 
   useEffect(() => {
     getCurrentUser();
@@ -113,10 +97,7 @@ function UserContext({ children }) {
       setEdit,
       postData, 
       setPostData,
-      getPost,
-      handleGetProfile,
-      profileData, 
-      setProfileData,
+      getPost
     }}>
       {children}
     </userDataContext.Provider>

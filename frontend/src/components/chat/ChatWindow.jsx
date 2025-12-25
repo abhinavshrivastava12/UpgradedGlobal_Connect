@@ -22,8 +22,6 @@ function ChatWindow() {
   const messageEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
-  
-  // ✅ FIX: Socket ko useRef se manage karo
   const socketRef = useRef(null);
   
   const token = localStorage.getItem('token');
@@ -79,10 +77,11 @@ function ChatWindow() {
       return;
     }
 
-    // ✅ FIX: Socket initialization
     if (!socketRef.current) {
       console.log('🔌 Initializing socket connection...');
-      socketRef.current = io('http://localhost:8000', {
+      // ✅ FIXED: Use environment variable or default
+      const SOCKET_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:8000';
+      socketRef.current = io(SOCKET_URL, {
         withCredentials: true,
         transports: ['websocket', 'polling']
       });
@@ -132,7 +131,6 @@ function ChatWindow() {
       onConnect();
     }
 
-    // ✅ FIX: Proper cleanup
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
@@ -143,7 +141,6 @@ function ChatWindow() {
     };
   }, [userId, token, selectedUser]);
 
-  // ✅ FIX: Component unmount par socket disconnect karo
   useEffect(() => {
     return () => {
       if (socketRef.current) {
@@ -214,7 +211,6 @@ function ChatWindow() {
       timestamp: new Date().toISOString()
     };
 
-    // ✅ FIX: Use socketRef.current
     socketRef.current?.emit('sendMessage', msgData);
     
     setMessage('');
@@ -224,7 +220,6 @@ function ChatWindow() {
   const handleTyping = (e) => {
     setMessage(e.target.value);
     if (selectedUser) {
-      // ✅ FIX: Use socketRef.current
       socketRef.current?.emit('typing', selectedUser._id);
     }
   };
@@ -244,9 +239,9 @@ function ChatWindow() {
 
   return (
     <>
-      <div className="flex h-screen bg-slate-900 pt-20">
-        {/* Rest of your JSX remains same... */}
-        {/* Sidebar - Conversations */}
+      <div className="flex h-screen bg-slate-900">
+        
+        {/* Sidebar */}
         <aside className="w-80 border-r border-slate-700 bg-slate-800 flex flex-col">
           <div className="p-4 border-b border-slate-700">
             <div className="flex justify-between items-center mb-4">

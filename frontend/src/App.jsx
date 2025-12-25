@@ -56,7 +56,9 @@ function App() {
         {userData ? (
           <>
             <Route path="/" element={<Home />} />
+            {/* ✅ FIXED: Profile route with optional userName parameter */}
             <Route path="/profile" element={<Profile />} />
+            <Route path="/profile/:userName" element={<Profile />} />
             <Route path="/network" element={<Network />} />
             <Route path="/notification" element={<Notification />} />
             <Route path="/bookmarks" element={<Bookmarks />} />
