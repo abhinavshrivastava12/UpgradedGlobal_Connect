@@ -8,13 +8,13 @@ import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  },
+  host: process.env.SMTP_HOST,
+  port: process.env.SMTP_PORT,
   secure: false,
-  port: 587
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
 });
 
 console.log("Nodemailer Config - User:", process.env.EMAIL_USER);
@@ -24,7 +24,7 @@ const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString()
 
 export const sendOTPEmail = async (email, otp, type) => {
   const mailOptions = {
-    from: process.env.EMAIL_USER,
+    from: process.env.EMAIL_FROM,
     to: email,
     subject: `Your ${type} OTP`,
     html: `
