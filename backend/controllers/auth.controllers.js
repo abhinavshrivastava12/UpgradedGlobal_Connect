@@ -11,30 +11,27 @@ import { sendEmail } from "../utils/sendEmail.js";
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
 export const sendOTPEmail = async (email, otp, type) => {
-  const mailOptions = {
-    from: process.env.EMAIL_FROM,
-    to: email,
-    subject: `Your ${type} OTP`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #24b2ff; text-align: center;">Verify Your Account</h2>
-        <div style="background: #f8f9fa; padding: 30px; border-radius: 10px; text-align: center;">
-          <h3>Your OTP Code</h3>
-          <div style="font-size: 32px; font-weight: bold; color: #24b2ff; letter-spacing: 5px; margin: 20px 0;">
-            ${otp}
-          </div>
-          <p style="color: #666;">This OTP will expire in 10 minutes</p>
-          <p style="color: #666;">If you didn't request this, please ignore this email.</p>
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #24b2ff; text-align: center;">Verify Your Account</h2>
+      <div style="background: #f8f9fa; padding: 30px; border-radius: 10px; text-align: center;">
+        <h3>Your OTP Code</h3>
+        <div style="font-size: 32px; font-weight: bold; color: #24b2ff; letter-spacing: 5px; margin: 20px 0;">
+          ${otp}
         </div>
+        <p style="color: #666;">This OTP will expire in 10 minutes</p>
+        <p style="color: #666;">If you didn't request this, please ignore this email.</p>
       </div>
-    `
-  };
+    </div>
+  `;
+
   await sendEmail({
     to: email,
     subject: `Your ${type} OTP`,
     html,
   });
 };
+
 
 export const sendSignUpOTP = async (req, res) => {
   try {
