@@ -12,12 +12,14 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-// ✅ FIXED: Dynamic CORS for production
+// ✅ FIXED: Dynamic CORS configuration
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+
+console.log('🌍 Configured CLIENT_URL:', CLIENT_URL);  // Debug log
 
 const io = new Server(server, {
   cors: {
-    origin: CLIENT_URL,
+    origin: CLIENT_URL,  // Ab yeh .env se aayega
     methods: ['GET', 'POST'],
     credentials: true
   },
@@ -26,7 +28,7 @@ const io = new Server(server, {
   pingInterval: 25000
 });
 
-// ✅ FIXED: Dynamic CORS
+// ✅ FIXED: Dynamic CORS for Express
 app.use(cors({
   origin: CLIENT_URL,
   credentials: true
