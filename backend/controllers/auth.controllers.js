@@ -9,16 +9,20 @@ import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT,
+  port: 587,
   secure: false,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  tls: {
+    rejectUnauthorized: false
+  },
+  connectionTimeout: 10000
 });
 
-console.log("Nodemailer Config - User:", process.env.EMAIL_USER);
-console.log("Nodemailer Config - Pass:", process.env.EMAIL_PASS ? "******" : "undefined");
+console.log("SMTP USER:", process.env.SMTP_USER);
+console.log("SMTP HOST:", process.env.SMTP_HOST ? "******" : "undefined");
 
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
