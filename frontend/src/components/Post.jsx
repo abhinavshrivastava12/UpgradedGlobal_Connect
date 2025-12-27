@@ -21,20 +21,41 @@ const Post = ({ post, currentUser, navigate, onDelete }) => {
   const [showRepostModal, setShowRepostModal] = useState(false);
   const [repostText, setRepostText] = useState('');
   const [showShareMenu, setShowShareMenu] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState(null);
 
-  // Initial post data effect
   useEffect(() => {
     if (post) {
       setComments(post.comment || []);
     }
   }, [post]);
 
-  // Check Bookmark Status effect
   useEffect(() => {
     if (post?._id) {
       checkBookmarkStatus();
     }
   }, [post._id]);
+
+  // ✅ NEW: Check connection status
+  useEffect(() => {
+    if (post?.author?._id && currentUser?._id && post.author._id !== currentUser._id) {
+      checkConnectionStatus();
+    }
+  }, [post?.author?._id, currentUser?._id]);
+
+  const checkConnectionStatus = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const config = {
+        headers: { 'Authorization': `Bearer ${token}` },
+        withCredentials: true
+      };
+      
+      const response = await axios.get(`/api/connection/getStatus/${post.author._id}`, config);
+      setConnectionStatus(response.data.status);
+    } catch (error) {
+      console.error('Check connection error:', error);
+    }
+  };
 
   const checkBookmarkStatus = async () => {
     try {
@@ -184,7 +205,17 @@ const Post = ({ post, currentUser, navigate, onDelete }) => {
     }
   };
 
-  // ✅ Navigate to user profile
+  // ✅ NEW: Handle message button click
+  const handleMessageClick = () => {
+    if (!navigate) {
+      console.warn('Navigate function not provided');
+      return;
+    }
+    
+    // Navigate to chat with selected user
+    navigate('/chat', { state: { selectedUser: post.author } });
+  };
+
   const navigateToProfile = (user) => {
     if (!navigate) {
       console.warn('Navigate function not provided');
@@ -200,13 +231,15 @@ const Post = ({ post, currentUser, navigate, onDelete }) => {
 
   const isOwner = currentUser?._id === post.author?._id;
   const author = post.author || {};
+  
+  // ✅ Check if connected (to show message button)
+  const isConnected = connectionStatus === 'disconnect';
 
   return (
     <div className="border-b border-slate-700 hover:bg-slate-800/50 transition-colors p-6">
-      {/* Header - ✅ CLICKABLE */}
+      {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-start space-x-3 flex-1 min-w-0">
-          {/* ✅ Clickable Profile Image */}
           <img
             src={author.profileImage || dp}
             alt={author.userName || 'User'}
@@ -214,7 +247,6 @@ const Post = ({ post, currentUser, navigate, onDelete }) => {
             className="w-12 h-12 rounded-full flex-shrink-0 object-cover border-2 border-purple-500 cursor-pointer hover:border-purple-400 transition-all"
           />
           <div className="flex-1 min-w-0">
-            {/* ✅ Clickable Name & Username */}
             <div className="flex items-center flex-wrap gap-2">
               <span 
                 onClick={() => navigateToProfile(author)}
@@ -235,10 +267,10 @@ const Post = ({ post, currentUser, navigate, onDelete }) => {
                 {post.createdAt ? formatDistanceToNow(new Date(post.createdAt), { addSuffix: true }) : 'Just now'}
               </span>
               
-              {/* ✅ Message Button - Only show if not owner */}
-              {!isOwner && (
+              {/* ✅ NEW: Message Button - Only show if connected and not owner */}
+              {!isOwner && isConnected && (
                 <button
-                  onClick={() => navigate && navigate('/chat', { state: { selectedUser: author } })}
+                  onClick={handleMessageClick}
                   className="ml-2 flex items-center gap-1 px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-full transition-all"
                 >
                   <Send className="w-3 h-3" />
@@ -292,7 +324,6 @@ const Post = ({ post, currentUser, navigate, onDelete }) => {
           </p>
         )}
 
-        {/* Image */}
         {post.image && (
           <div className="mb-4 rounded-2xl overflow-hidden">
             <img
@@ -304,7 +335,6 @@ const Post = ({ post, currentUser, navigate, onDelete }) => {
           </div>
         )}
 
-        {/* Reposted Content */}
         {post.repostOf && (
           <div className="mb-4 border border-slate-600 rounded-xl p-4 bg-slate-800/50">
             <div className="flex items-center gap-2 mb-2 text-gray-400 text-sm">
@@ -346,7 +376,6 @@ const Post = ({ post, currentUser, navigate, onDelete }) => {
             </div>
           </button>
 
-          {/* Replaced Like Section with PostReactions */}
           <PostReactions postId={post._id} currentUserId={currentUser?._id} />
 
           <div className="relative">
@@ -376,7 +405,6 @@ const Post = ({ post, currentUser, navigate, onDelete }) => {
             )}
           </div>
 
-          {/* Bookmark Button */}
           <button
             onClick={handleBookmark}
             className={`flex items-center space-x-2 transition-colors group ${
@@ -424,7 +452,6 @@ const Post = ({ post, currentUser, navigate, onDelete }) => {
               </div>
             </form>
 
-            {/* ✅ Clickable Comments */}
             {comments.length > 0 && (
               <div className="space-y-4">
                 {comments.map((c, idx) => (

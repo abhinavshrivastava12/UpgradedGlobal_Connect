@@ -1,8 +1,9 @@
 import Story from '../models/story.model.js';
 import uploadOnCloudinary from '../config/cloudinary.js';
 import User from '../models/user.model.js';
+import fs from 'fs';
 
-// Create Story
+// Create Story - FIXED
 export const createStory = async (req, res) => {
   try {
     console.log('📸 Story creation request:', {
@@ -20,19 +21,41 @@ export const createStory = async (req, res) => {
       });
     }
 
-    // Upload to Cloudinary
+    // ✅ FIXED: Proper error handling for Cloudinary
     console.log('☁️ Uploading to Cloudinary:', req.file.path);
-    const mediaUrl = await uploadOnCloudinary(req.file.path);
     
-    if (!mediaUrl) {
-      console.error('❌ Cloudinary upload failed');
+    let mediaUrl;
+    try {
+      mediaUrl = await uploadOnCloudinary(req.file.path);
+      
+      if (!mediaUrl) {
+        console.error('❌ Cloudinary upload failed - no URL returned');
+        
+        // Clean up file
+        if (fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+        
+        return res.status(500).json({ 
+          success: false,
+          message: 'Failed to upload media to cloud storage' 
+        });
+      }
+      
+      console.log('✅ Cloudinary upload success:', mediaUrl);
+    } catch (uploadError) {
+      console.error('❌ Cloudinary upload error:', uploadError);
+      
+      // Clean up file
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      
       return res.status(500).json({ 
         success: false,
-        message: 'Failed to upload media' 
+        message: 'Media upload failed: ' + uploadError.message
       });
     }
-
-    console.log('✅ Cloudinary upload success:', mediaUrl);
 
     // Determine media type
     const mediaType = req.file.mimetype.startsWith('video/') ? 'video' : 'image';
@@ -43,7 +66,7 @@ export const createStory = async (req, res) => {
       media: mediaUrl,
       mediaType,
       text: text || '',
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
     });
 
     await story.populate('user', 'firstName lastName userName profileImage');
@@ -57,6 +80,16 @@ export const createStory = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Create story error:', error);
+    
+    // Clean up file if exists
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (cleanupError) {
+        console.error('❌ File cleanup error:', cleanupError);
+      }
+    }
+    
     res.status(500).json({ 
       success: false,
       message: 'Failed to create story: ' + error.message
@@ -64,12 +97,11 @@ export const createStory = async (req, res) => {
   }
 };
 
-// Get All Stories (from connections and own)
+// Get All Stories
 export const getStories = async (req, res) => {
   try {
     const currentUser = await User.findById(req.userId).select('connection');
     
-    // Get stories from connections + own stories
     const userIds = [...(currentUser.connection || []), req.userId];
     
     const stories = await Story.find({
@@ -79,7 +111,6 @@ export const getStories = async (req, res) => {
     .populate('user', 'firstName lastName userName profileImage')
     .sort({ createdAt: -1 });
 
-    // Group stories by user
     const groupedStories = stories.reduce((acc, story) => {
       const userId = story.user._id.toString();
       if (!acc[userId]) {
@@ -123,7 +154,6 @@ export const viewStory = async (req, res) => {
       });
     }
 
-    // Check if already viewed
     const alreadyViewed = story.views.some(
       view => view.user.toString() === userId
     );
@@ -165,11 +195,10 @@ export const deleteStory = async (req, res) => {
       });
     }
 
-    // Check ownership
     if (story.user.toString() !== userId) {
       return res.status(403).json({ 
         success: false,
-        message: 'Not authorized to delete this story' 
+        message: 'Not authorized' 
       });
     }
 
@@ -205,7 +234,6 @@ export const getStoryViews = async (req, res) => {
       });
     }
 
-    // Check ownership
     if (story.user.toString() !== userId) {
       return res.status(403).json({ 
         success: false,
@@ -222,7 +250,7 @@ export const getStoryViews = async (req, res) => {
     console.error('Get story views error:', error);
     res.status(500).json({ 
       success: false,
-      message: 'Failed to fetch story views' 
+      message: 'Failed to fetch views' 
     });
   }
 };
