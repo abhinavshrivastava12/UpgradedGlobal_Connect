@@ -33,9 +33,13 @@ function ChatWindow() {
     messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
+  // ✅ FIX: Debounced scroll to prevent constant re-renders
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+    const timer = setTimeout(() => {
+      scrollToBottom();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [messages.length]);
 
   const loadInbox = async () => {
     try {
@@ -75,27 +79,23 @@ function ChatWindow() {
     }
   };
 
-  // ✅ AUTO-SELECT USER FROM POST MESSAGE BUTTON
+  // ✅ FIX: Auto-select user from post with proper cleanup
   useEffect(() => {
     const userFromPost = location.state?.selectedUser;
     
     if (userFromPost && userFromPost._id) {
       console.log('📨 Auto-selecting user from post:', userFromPost);
       
-      // Check if user already exists in conversations
       const existingConv = conversations.find(
         conv => conv.userInfo._id === userFromPost._id
       );
       
       if (existingConv) {
-        // User exists in conversations, select them
         handleSelectUser(existingConv);
       } else {
-        // User not in conversations yet, manually set and load history
         setSelectedUser(userFromPost);
         loadChatHistory(userFromPost._id);
         
-        // Add to conversations list manually
         setConversations(prev => [{
           _id: `temp-${userFromPost._id}`,
           userInfo: userFromPost,
@@ -104,10 +104,10 @@ function ChatWindow() {
         }, ...prev]);
       }
       
-      // Clear the location state to prevent re-selection on component re-render
-      window.history.replaceState({}, document.title);
+      // ✅ CRITICAL: Clear location state to prevent repeated auto-selection
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [location.state, conversations]);
+  }, [location.state?.selectedUser?._id]); // ✅ FIX: Proper dependency
 
   // ✅ SOCKET CONNECTION
   useEffect(() => {
@@ -144,43 +144,43 @@ function ChatWindow() {
       setConnectionStatus('disconnected');
     };
 
-    // ✅ REAL-TIME MESSAGE RECEIVER
+    // ✅ FIX: Better message handling with duplicate prevention
     const onReceiveMessage = (msg) => {
       console.log('📨 New message received:', msg);
       
-      // Update messages if chat is open with this user
-      if (selectedUser && (
-        msg.from._id === selectedUser._id || 
-        msg.to._id === selectedUser._id
-      )) {
-        setMessages(prev => {
-          // Check if message already exists
-          const exists = prev.some(m => m._id === msg._id);
-          if (exists) return prev;
+      setMessages(prev => {
+        // Check if message already exists
+        const exists = prev.some(m => m._id === msg._id);
+        if (exists) return prev;
+        
+        // Only add if chat is open with this user
+        if (selectedUser && (
+          msg.from._id === selectedUser._id || 
+          msg.to._id === selectedUser._id
+        )) {
           return [...prev, msg];
-        });
-        scrollToBottom();
-      }
+        }
+        return prev;
+      });
       
-      // Always reload inbox to show new message
       loadInbox();
     };
 
     const onMessageSent = (msg) => {
       console.log('✅ Message sent confirmation:', msg);
       
-      // Add to current chat if open
-      if (selectedUser && (
-        msg.from._id === userId || 
-        msg.to._id === selectedUser._id
-      )) {
-        setMessages(prev => {
-          const exists = prev.some(m => m._id === msg._id);
-          if (exists) return prev;
+      setMessages(prev => {
+        const exists = prev.some(m => m._id === msg._id);
+        if (exists) return prev;
+        
+        if (selectedUser && (
+          msg.from._id === userId || 
+          msg.to._id === selectedUser._id
+        )) {
           return [...prev, msg];
-        });
-        scrollToBottom();
-      }
+        }
+        return prev;
+      });
     };
 
     const onUserTyping = (data) => {
@@ -213,7 +213,7 @@ function ChatWindow() {
       socket.off('userStoppedTyping');
       clearTimeout(typingTimeoutRef.current);
     };
-  }, [userId, token, selectedUser]);
+  }, [userId, token, selectedUser?._id]); // ✅ FIX: Proper dependencies
 
   useEffect(() => {
     return () => {
@@ -416,147 +416,146 @@ function ChatWindow() {
                   >
                     <Video className="w-4 h-4" />
                     Video Call
-                  </button>
-                </div>
-              </header>
+              </button>
+            </div>
+          </header>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {loading ? (
-                  <div className="text-center text-gray-400">Loading messages...</div>
-                ) : messages.length === 0 ? (
-                  <div className="text-center text-gray-400">No messages yet. Start the conversation!</div>
-                ) : (
-                  messages.map((msg, idx) => {
-                    const isMine = msg.from._id === userId || msg.from === userId;
-                    const sender = isMine ? 'You' : getUserName(msg.from);
-                    
-                    return (
-                      <div key={msg._id || idx} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-xs lg:max-w-md ${isMine ? 'order-2' : 'order-1'}`}>
-                          {!isMine && (
-                            <div className="text-xs text-gray-400 mb-1">{sender}</div>
-                          )}
-                          <div className={`px-4 py-2 rounded-lg ${
-                            isMine 
-                              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' 
-                              : 'bg-slate-700 text-gray-100'
-                          }`}>
-                            {msg.image && (
-                              <img 
-                                src={msg.image} 
-                                alt="Shared" 
-                                className="rounded-lg mb-2 max-w-full cursor-pointer"
-                                onClick={() => window.open(msg.image, '_blank')}
-                              />
-                            )}
-                            {msg.text && <div className="text-sm">{msg.text}</div>}
-                          </div>
-                          <div className="flex items-center gap-1 mt-1">
-                            <span className="text-xs text-gray-500">
-                              {msg.timestamp ? formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true }) : 'Just now'}
-                            </span>
-                            {isMine && (
-                              <span className={`text-xs ${msg.readAt ? 'text-blue-400' : 'text-gray-500'}`}>
-                                {msg.readAt ? '✓✓' : '✓'}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {loading ? (
+              <div className="text-center text-gray-400">Loading messages...</div>
+            ) : messages.length === 0 ? (
+              <div className="text-center text-gray-400">No messages yet. Start the conversation!</div>
+            ) : (
+              messages.map((msg, idx) => {
+                const isMine = msg.from._id === userId || msg.from === userId;
+                const sender = isMine ? 'You' : getUserName(msg.from);
                 
-                {typing && typing.userId === selectedUser._id && (
-                  <div className="flex justify-start">
-                    <div className="bg-slate-700 rounded-2xl px-4 py-3 flex items-center gap-2">
-                      <div className="flex gap-1">
-                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" />
-                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                return (
+                  <div key={msg._id || idx} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-xs lg:max-w-md ${isMine ? 'order-2' : 'order-1'}`}>
+                      {!isMine && (
+                        <div className="text-xs text-gray-400 mb-1">{sender}</div>
+                      )}
+                      <div className={`px-4 py-2 rounded-lg ${
+                        isMine 
+                          ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' 
+                          : 'bg-slate-700 text-gray-100'
+                      }`}>
+                        {msg.image && (
+                          <img 
+                            src={msg.image} 
+                            alt="Shared" 
+                            className="rounded-lg mb-2 max-w-full cursor-pointer"
+                            onClick={() => window.open(msg.image, '_blank')}
+                          />
+                        )}
+                        {msg.text && <div className="text-sm">{msg.text}</div>}
                       </div>
-                      <span className="text-sm text-gray-300">typing...</span>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="text-xs text-gray-500">
+                          {msg.timestamp ? formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true }) : 'Just now'}
+                        </span>
+                        {isMine && (
+                          <span className={`text-xs ${msg.readAt ? 'text-blue-400' : 'text-gray-500'}`}>
+                            {msg.readAt ? '✓✓' : '✓'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                )}
-                
-                <div ref={messageEndRef} />
-              </div>
-
-              <div className="border-t border-slate-700 p-4 bg-slate-800">
-                {imagePreview && (
-                  <div className="mb-2 relative inline-block">
-                    <img 
-                      src={imagePreview} 
-                      alt="Preview" 
-                      className="h-20 rounded-lg"
-                    />
-                    <button
-                      onClick={handleRemoveImage}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                );
+              })
+            )}
+            
+            {typing && typing.userId === selectedUser._id && (
+              <div className="flex justify-start">
+                <div className="bg-slate-700 rounded-2xl px-4 py-3 flex items-center gap-2">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" />
+                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
                   </div>
-                )}
-                
-                <div className="flex gap-2">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept="image/*"
-                    onChange={handleImageSelect}
-                    className="hidden"
-                  />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 flex items-center gap-2"
-                  >
-                    <Image className="w-4 h-4" />
-                  </button>
-                  <input
-                    type="text"
-                    placeholder="Type a message..."
-                    value={message}
-                    onChange={handleTyping}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage(e)}
-                    disabled={loading}
-                    className="flex-1 px-4 py-2 border border-slate-600 bg-slate-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                  <button 
-                    onClick={handleSendMessage}
-                    disabled={(!message.trim() && !selectedImage) || loading} 
-                    className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
-                  >
-                    <Send className="w-4 h-4" />
-                    Send
-                  </button>
+                  <span className="text-sm text-gray-300">typing...</span>
                 </div>
               </div>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <Users className="w-12 h-12 mx-auto mb-4 text-gray-600" />
-                <h2 className="text-xl font-semibold mb-2 text-gray-300">Welcome to Chat</h2>
-                <p className="text-gray-500">Select a conversation to start chatting</p>
+            )}
+            
+            <div ref={messageEndRef} />
+          </div>
+
+          <div className="border-t border-slate-700 p-4 bg-slate-800">
+            {imagePreview && (
+              <div className="mb-2 relative inline-block">
+                <img 
+                  src={imagePreview} 
+                  alt="Preview" 
+                  className="h-20 rounded-lg"
+                />
+                <button
+                  onClick={handleRemoveImage}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
+            )}
+            
+            <div className="flex gap-2">
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                onChange={handleImageSelect}
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 flex items-center gap-2"
+              >
+                <Image className="w-4 h-4" />
+              </button>
+              <input
+                type="text"
+                placeholder="Type a message..."
+                value={message}
+                onChange={handleTyping}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage(e)}
+                disabled={loading}
+                className="flex-1 px-4 py-2 border border-slate-600 bg-slate-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              <button 
+                onClick={handleSendMessage}
+                disabled={(!message.trim() && !selectedImage) || loading} 
+                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                <Send className="w-4 h-4" />
+                Send
+              </button>
             </div>
-          )}
-        </main>
-      </div>
-
-      {showVideoCall && selectedUser && (
-        <VideoCallModal
-          isOpen={showVideoCall}
-          onClose={() => setShowVideoCall(false)}
-          recipientId={selectedUser._id}
-          recipientName={getUserName(selectedUser)}
-          currentUserId={userId}
-        />
+          </div>
+        </>
+      ) : (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <Users className="w-12 h-12 mx-auto mb-4 text-gray-600" />
+            <h2 className="text-xl font-semibold mb-2 text-gray-300">Welcome to Chat</h2>
+            <p className="text-gray-500">Select a conversation to start chatting</p>
+          </div>
+        </div>
       )}
-    </>
-  );
-}
+    </main>
+  </div>
 
+  {showVideoCall && selectedUser && (
+    <VideoCallModal
+      isOpen={showVideoCall}
+      onClose={() => setShowVideoCall(false)}
+      recipientId={selectedUser._id}
+      recipientName={getUserName(selectedUser)}
+      currentUserId={userId}
+    />
+  )}
+</>
+);
+}
 export default ChatWindow;

@@ -135,26 +135,38 @@ io.on('connection', (socket) => {
 
   // ✅ IMPROVED: Video call handling
   socket.on('callUser', (data) => {
-    console.log('📞 Incoming call from:', data.from, 'to:', data.userToCall);
-    console.log('📞 Caller info:', data.callerInfo);
+  console.log('📞 Incoming call from:', data.from, 'to:', data.userToCall);
+  console.log('📞 Caller info:', data.callerInfo);
+  
+  const recipientSocketId = userSocketMap.get(data.userToCall);
+  console.log('📞 Recipient socket:', recipientSocketId);
+  
+  if (recipientSocketId) {
+    // ✅ FIX: Emit to specific socket
+    io.to(recipientSocketId).emit('incomingCall', {
+      signal: data.signalData,
+      from: data.from,
+      callerInfo: data.callerInfo
+    });
+    console.log('✅ Call notification sent successfully');
     
-    const recipientSocketId = userSocketMap.get(data.userToCall);
-    console.log('📞 Recipient socket:', recipientSocketId);
-    
-    if (recipientSocketId) {
-      io.to(recipientSocketId).emit('incomingCall', {
-        signal: data.signalData,
-        from: data.from,
-        callerInfo: data.callerInfo
+    // ✅ NEW: Send confirmation to caller
+    const callerSocketId = userSocketMap.get(data.from);
+    if (callerSocketId) {
+      io.to(callerSocketId).emit('callRinging', {
+        to: data.userToCall
       });
-      console.log('✅ Call notification sent successfully');
-    } else {
-      console.log('❌ User not online');
+    }
+  } else {
+    console.log('❌ User not online');
+    const callerSocketId = userSocketMap.get(data.from);
+    if (callerSocketId) {
       socket.emit('callFailed', { 
         message: 'User is not available' 
       });
     }
-  });
+  }
+});
 
   socket.on('answerCall', (data) => {
     console.log('✅ Call answered by:', socket.userId);

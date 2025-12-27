@@ -105,7 +105,23 @@ export const applyJob = async (req, res) => {
       });
     }
 
-    // ✅ FIXED: Upload resume with proper error handling
+    // ✅ FIX: Check Cloudinary configuration
+    if (!process.env.CLOUDINARY_CLOUD_NAME || 
+        !process.env.CLOUDINARY_API_KEY || 
+        !process.env.CLOUDINARY_API_SECRET) {
+      console.error('❌ Cloudinary credentials not configured');
+      
+      // Clean up file
+      if (fs.existsSync(resumeFile.path)) {
+        fs.unlinkSync(resumeFile.path);
+      }
+      
+      return res.status(500).json({ 
+        success: false,
+        message: 'Server configuration error: Resume upload not configured' 
+      });
+    }
+
     console.log("☁️ Uploading resume to Cloudinary...");
     
     let resumeUrl;
@@ -114,12 +130,6 @@ export const applyJob = async (req, res) => {
       
       if (!resumeUrl) {
         console.error('❌ Cloudinary upload failed - no URL returned');
-        
-        // Clean up file
-        if (fs.existsSync(resumeFile.path)) {
-          fs.unlinkSync(resumeFile.path);
-        }
-        
         return res.status(500).json({ 
           success: false,
           message: "Failed to upload resume" 
@@ -129,12 +139,6 @@ export const applyJob = async (req, res) => {
       console.log("✅ Resume uploaded:", resumeUrl);
     } catch (uploadError) {
       console.error('❌ Resume upload error:', uploadError);
-      
-      // Clean up file
-      if (fs.existsSync(resumeFile.path)) {
-        fs.unlinkSync(resumeFile.path);
-      }
-      
       return res.status(500).json({ 
         success: false,
         message: "Resume upload failed: " + uploadError.message
@@ -172,22 +176,6 @@ export const applyJob = async (req, res) => {
       } catch (cleanupError) {
         console.error('❌ File cleanup error:', cleanupError);
       }
-    }
-    
-    // Handle specific errors
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({ 
-        success: false,
-        message: "Validation error", 
-        details: error.message 
-      });
-    }
-    
-    if (error.name === 'CastError') {
-      return res.status(400).json({ 
-        success: false,
-        message: "Invalid job ID format" 
-      });
     }
     
     res.status(500).json({ 

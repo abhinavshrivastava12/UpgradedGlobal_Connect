@@ -41,8 +41,8 @@ function VideoCallModal({
 
     socket.on('connect', () => {
       console.log('📞 Video call socket connected');
-      const token = window.sessionStorage?.getItem('token') || '';
-      const email = window.sessionStorage?.getItem('email') || '';
+      const token = localStorage.getItem('token') || '';
+      const email = localStorage.getItem('email') || '';
       socket.emit('join', { 
         userId: currentUserId, 
         token,
@@ -104,11 +104,17 @@ function VideoCallModal({
     try {
       console.log('📞 Initializing video call...');
 
+      // ✅ FIX: Proper token fetching with error handling
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
       const response = await fetch('/api/agora/token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${window.sessionStorage?.getItem('token') || ''}`
+          'Authorization': `Bearer ${token}`
         },
         credentials: 'include',
         body: JSON.stringify({
@@ -117,14 +123,28 @@ function VideoCallModal({
         })
       });
 
+      // ✅ FIX: Better response validation
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Token fetch failed:', response.status, errorText);
+        throw new Error(`Failed to get token: ${response.status}`);
+      }
+
       const data = await response.json();
-      const { token: agoraToken, uid } = data;
+      
+      // ✅ FIX: Validate response data
+      if (!data || !data.appId) {
+        console.error('Invalid response data:', data);
+        throw new Error('Invalid token response');
+      }
+
+      const { token: agoraToken, uid, appId } = data;
       console.log('✅ Agora token received');
 
       const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
       clientRef.current = client;
 
-      await client.join(APP_ID, `call_${currentUserId}_${recipientId}`, agoraToken, uid);
+      await client.join(appId || APP_ID, `call_${currentUserId}_${recipientId}`, agoraToken || null, uid);
       console.log('✅ Joined Agora channel');
 
       const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
@@ -141,7 +161,7 @@ function VideoCallModal({
       setCallStatus('ringing');
 
       if (socketRef.current) {
-        const email = window.sessionStorage?.getItem('email') || '';
+        const email = localStorage.getItem('email') || '';
         socketRef.current.emit('callUser', {
           userToCall: recipientId,
           from: currentUserId,

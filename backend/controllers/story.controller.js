@@ -21,7 +21,23 @@ export const createStory = async (req, res) => {
       });
     }
 
-    // ✅ FIXED: Proper error handling for Cloudinary
+    // ✅ CHECK: Cloudinary credentials
+    if (!process.env.CLOUDINARY_CLOUD_NAME || 
+        !process.env.CLOUDINARY_API_KEY || 
+        !process.env.CLOUDINARY_API_SECRET) {
+      console.error('❌ Cloudinary credentials not configured');
+      
+      // Clean up file
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      
+      return res.status(500).json({ 
+        success: false,
+        message: 'Server configuration error: Cloud storage not configured' 
+      });
+    }
+
     console.log('☁️ Uploading to Cloudinary:', req.file.path);
     
     let mediaUrl;
@@ -30,12 +46,6 @@ export const createStory = async (req, res) => {
       
       if (!mediaUrl) {
         console.error('❌ Cloudinary upload failed - no URL returned');
-        
-        // Clean up file
-        if (fs.existsSync(req.file.path)) {
-          fs.unlinkSync(req.file.path);
-        }
-        
         return res.status(500).json({ 
           success: false,
           message: 'Failed to upload media to cloud storage' 
@@ -45,12 +55,6 @@ export const createStory = async (req, res) => {
       console.log('✅ Cloudinary upload success:', mediaUrl);
     } catch (uploadError) {
       console.error('❌ Cloudinary upload error:', uploadError);
-      
-      // Clean up file
-      if (fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
-      
       return res.status(500).json({ 
         success: false,
         message: 'Media upload failed: ' + uploadError.message
