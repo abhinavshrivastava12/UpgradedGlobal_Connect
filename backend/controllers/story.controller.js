@@ -3,12 +3,13 @@ import uploadOnCloudinary from '../config/cloudinary.js';
 import User from '../models/user.model.js';
 import fs from 'fs';
 
-// Create Story - FIXED
+// Create Story - COMPLETELY FIXED
 export const createStory = async (req, res) => {
   try {
     console.log('📸 Story creation request:', {
       userId: req.userId,
       hasFile: !!req.file,
+      filePath: req.file?.path,
       body: req.body
     });
 
@@ -21,20 +22,19 @@ export const createStory = async (req, res) => {
       });
     }
 
-    // ✅ CHECK: Cloudinary credentials
+    // ✅ CRITICAL: Check Cloudinary configuration
     if (!process.env.CLOUDINARY_CLOUD_NAME || 
         !process.env.CLOUDINARY_API_KEY || 
         !process.env.CLOUDINARY_API_SECRET) {
-      console.error('❌ Cloudinary credentials not configured');
+      console.error('❌ Cloudinary credentials missing');
       
-      // Clean up file
       if (fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path);
       }
       
       return res.status(500).json({ 
         success: false,
-        message: 'Server configuration error: Cloud storage not configured' 
+        message: 'Server configuration error: Cloud storage not configured. Please contact admin.' 
       });
     }
 
@@ -45,26 +45,24 @@ export const createStory = async (req, res) => {
       mediaUrl = await uploadOnCloudinary(req.file.path);
       
       if (!mediaUrl) {
-        console.error('❌ Cloudinary upload failed - no URL returned');
+        console.error('❌ Cloudinary returned null');
         return res.status(500).json({ 
           success: false,
-          message: 'Failed to upload media to cloud storage' 
+          message: 'Failed to upload media. Please try again.' 
         });
       }
       
-      console.log('✅ Cloudinary upload success:', mediaUrl);
+      console.log('✅ Upload success:', mediaUrl);
     } catch (uploadError) {
-      console.error('❌ Cloudinary upload error:', uploadError);
+      console.error('❌ Upload error:', uploadError.message);
       return res.status(500).json({ 
         success: false,
-        message: 'Media upload failed: ' + uploadError.message
+        message: `Upload failed: ${uploadError.message}` 
       });
     }
 
-    // Determine media type
     const mediaType = req.file.mimetype.startsWith('video/') ? 'video' : 'image';
 
-    // Create story
     const story = await Story.create({
       user: req.userId,
       media: mediaUrl,
@@ -83,29 +81,26 @@ export const createStory = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Create story error:', error);
+    console.error('❌ Story creation error:', error);
     
-    // Clean up file if exists
     if (req.file?.path && fs.existsSync(req.file.path)) {
       try {
         fs.unlinkSync(req.file.path);
       } catch (cleanupError) {
-        console.error('❌ File cleanup error:', cleanupError);
+        console.error('File cleanup error:', cleanupError);
       }
     }
     
     res.status(500).json({ 
       success: false,
-      message: 'Failed to create story: ' + error.message
+      message: error.message || 'Failed to create story'
     });
   }
 };
 
-// Get All Stories
 export const getStories = async (req, res) => {
   try {
     const currentUser = await User.findById(req.userId).select('connection');
-    
     const userIds = [...(currentUser.connection || []), req.userId];
     
     const stories = await Story.find({
@@ -127,11 +122,9 @@ export const getStories = async (req, res) => {
       return acc;
     }, {});
 
-    const storyGroups = Object.values(groupedStories);
-
     res.json({
       success: true,
-      stories: storyGroups
+      stories: Object.values(groupedStories)
     });
 
   } catch (error) {
@@ -143,14 +136,12 @@ export const getStories = async (req, res) => {
   }
 };
 
-// View Story
 export const viewStory = async (req, res) => {
   try {
     const { storyId } = req.params;
     const userId = req.userId;
 
     const story = await Story.findById(storyId);
-
     if (!story) {
       return res.status(404).json({ 
         success: false,
@@ -163,17 +154,11 @@ export const viewStory = async (req, res) => {
     );
 
     if (!alreadyViewed) {
-      story.views.push({
-        user: userId,
-        viewedAt: new Date()
-      });
+      story.views.push({ user: userId, viewedAt: new Date() });
       await story.save();
     }
 
-    res.json({
-      success: true,
-      message: 'Story viewed'
-    });
+    res.json({ success: true, message: 'Story viewed' });
 
   } catch (error) {
     console.error('View story error:', error);
@@ -184,14 +169,12 @@ export const viewStory = async (req, res) => {
   }
 };
 
-// Delete Story
 export const deleteStory = async (req, res) => {
   try {
     const { storyId } = req.params;
     const userId = req.userId;
 
     const story = await Story.findById(storyId);
-
     if (!story) {
       return res.status(404).json({ 
         success: false,
@@ -207,11 +190,7 @@ export const deleteStory = async (req, res) => {
     }
 
     await Story.findByIdAndDelete(storyId);
-
-    res.json({
-      success: true,
-      message: 'Story deleted'
-    });
+    res.json({ success: true, message: 'Story deleted' });
 
   } catch (error) {
     console.error('Delete story error:', error);
@@ -222,7 +201,6 @@ export const deleteStory = async (req, res) => {
   }
 };
 
-// Get Story Views
 export const getStoryViews = async (req, res) => {
   try {
     const { storyId } = req.params;
@@ -245,10 +223,7 @@ export const getStoryViews = async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      views: story.views
-    });
+    res.json({ success: true, views: story.views });
 
   } catch (error) {
     console.error('Get story views error:', error);

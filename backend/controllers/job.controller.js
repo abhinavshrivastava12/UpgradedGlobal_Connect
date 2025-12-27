@@ -3,7 +3,6 @@ import Application from "../models/Application.js";
 import uploadOnCloudinary from "../config/cloudinary.js";
 import fs from 'fs';
 
-// Add Job
 export const addJob = async (req, res) => {
   try {
     const { title, company, location, description } = req.body;
@@ -22,7 +21,6 @@ export const addJob = async (req, res) => {
   }
 };
 
-// Get all jobs
 export const getJobs = async (req, res) => {
   try {
     const jobs = await Job.find().sort({ datePosted: -1 });
@@ -33,7 +31,6 @@ export const getJobs = async (req, res) => {
   }
 };
 
-// Delete Job
 export const deleteJob = async (req, res) => {
   try {
     const { id } = req.params;
@@ -50,20 +47,22 @@ export const deleteJob = async (req, res) => {
   }
 };
 
-// ✅ FIXED: Job Application Handler
+// ✅ COMPLETELY FIXED JOB APPLICATION
 export const applyJob = async (req, res) => {
   try {
-    console.log("📝 Job application request:", {
+    console.log("📝 Application request:", {
       body: req.body,
-      file: req.file,
-      userId: req.userId
+      hasFile: !!req.file,
+      filePath: req.file?.path
     });
 
     const { jobId, name, email } = req.body;
     const resumeFile = req.file;
 
-    // Validate fields
     if (!jobId) {
+      if (resumeFile && fs.existsSync(resumeFile.path)) {
+        fs.unlinkSync(resumeFile.path);
+      }
       return res.status(400).json({ 
         success: false,
         message: "Job ID is required" 
@@ -71,6 +70,9 @@ export const applyJob = async (req, res) => {
     }
     
     if (!name) {
+      if (resumeFile && fs.existsSync(resumeFile.path)) {
+        fs.unlinkSync(resumeFile.path);
+      }
       return res.status(400).json({ 
         success: false,
         message: "Name is required" 
@@ -78,6 +80,9 @@ export const applyJob = async (req, res) => {
     }
     
     if (!email) {
+      if (resumeFile && fs.existsSync(resumeFile.path)) {
+        fs.unlinkSync(resumeFile.path);
+      }
       return res.status(400).json({ 
         success: false,
         message: "Email is required" 
@@ -91,61 +96,56 @@ export const applyJob = async (req, res) => {
       });
     }
 
-    // Validate job exists
     const job = await Job.findById(jobId);
     if (!job) {
-      // Clean up file
       if (fs.existsSync(resumeFile.path)) {
         fs.unlinkSync(resumeFile.path);
       }
-      
       return res.status(404).json({ 
         success: false,
         message: "Job not found" 
       });
     }
 
-    // ✅ FIX: Check Cloudinary configuration
+    // ✅ CRITICAL: Check Cloudinary
     if (!process.env.CLOUDINARY_CLOUD_NAME || 
         !process.env.CLOUDINARY_API_KEY || 
         !process.env.CLOUDINARY_API_SECRET) {
-      console.error('❌ Cloudinary credentials not configured');
+      console.error('❌ Cloudinary not configured');
       
-      // Clean up file
       if (fs.existsSync(resumeFile.path)) {
         fs.unlinkSync(resumeFile.path);
       }
       
       return res.status(500).json({ 
         success: false,
-        message: 'Server configuration error: Resume upload not configured' 
+        message: 'Server configuration error: Resume upload not available. Please contact admin.' 
       });
     }
 
-    console.log("☁️ Uploading resume to Cloudinary...");
+    console.log("☁️ Uploading resume...");
     
     let resumeUrl;
     try {
       resumeUrl = await uploadOnCloudinary(resumeFile.path);
       
       if (!resumeUrl) {
-        console.error('❌ Cloudinary upload failed - no URL returned');
+        console.error('❌ Upload returned null');
         return res.status(500).json({ 
           success: false,
-          message: "Failed to upload resume" 
+          message: "Failed to upload resume. Please try again." 
         });
       }
       
       console.log("✅ Resume uploaded:", resumeUrl);
     } catch (uploadError) {
-      console.error('❌ Resume upload error:', uploadError);
+      console.error('❌ Upload error:', uploadError.message);
       return res.status(500).json({ 
         success: false,
-        message: "Resume upload failed: " + uploadError.message
+        message: `Upload failed: ${uploadError.message}` 
       });
     }
 
-    // Create application
     const application = new Application({
       jobId,
       applicantName: name,
@@ -167,21 +167,19 @@ export const applyJob = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("❌ Apply job error:", error);
+    console.error("❌ Application error:", error);
     
-    // Clean up file if exists
     if (req.file?.path && fs.existsSync(req.file.path)) {
       try {
         fs.unlinkSync(req.file.path);
       } catch (cleanupError) {
-        console.error('❌ File cleanup error:', cleanupError);
+        console.error('Cleanup error:', cleanupError);
       }
     }
     
     res.status(500).json({ 
       success: false,
-      message: "Internal server error",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: error.message || "Application submission failed"
     });
   }
 };
