@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Video, Send, Users, Wifi, WifiOff, Image, X } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import io from 'socket.io-client';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
@@ -8,6 +9,7 @@ import VideoCallModal from '../VideoCallModal';
 const dp = 'https://ui-avatars.com/api/?name=User&size=200&background=6366f1&color=fff';
 
 function ChatWindow() {
+  const location = useLocation();
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
@@ -72,6 +74,40 @@ function ChatWindow() {
       setLoading(false);
     }
   };
+
+  // ✅ AUTO-SELECT USER FROM POST MESSAGE BUTTON
+  useEffect(() => {
+    const userFromPost = location.state?.selectedUser;
+    
+    if (userFromPost && userFromPost._id) {
+      console.log('📨 Auto-selecting user from post:', userFromPost);
+      
+      // Check if user already exists in conversations
+      const existingConv = conversations.find(
+        conv => conv.userInfo._id === userFromPost._id
+      );
+      
+      if (existingConv) {
+        // User exists in conversations, select them
+        handleSelectUser(existingConv);
+      } else {
+        // User not in conversations yet, manually set and load history
+        setSelectedUser(userFromPost);
+        loadChatHistory(userFromPost._id);
+        
+        // Add to conversations list manually
+        setConversations(prev => [{
+          _id: `temp-${userFromPost._id}`,
+          userInfo: userFromPost,
+          lastMessage: null,
+          unread: 0
+        }, ...prev]);
+      }
+      
+      // Clear the location state to prevent re-selection on component re-render
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, conversations]);
 
   // ✅ SOCKET CONNECTION
   useEffect(() => {
@@ -279,7 +315,7 @@ function ChatWindow() {
 
   return (
     <>
-      <div className="flex h-screen bg-slate-900">
+      <div className="flex h-screen bg-slate-900 pt-16">
         
         {/* Sidebar */}
         <aside className="w-80 border-r border-slate-700 bg-slate-800 flex flex-col">

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { MessageCircle, Repeat2, Share2, Trash2, MoreHorizontal, X, Bookmark, BookmarkCheck } from 'lucide-react';
+import { MessageCircle, Repeat2, Share2, Trash2, MoreHorizontal, X, Bookmark, BookmarkCheck, Send } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import dp from '../assets/dp.webp';
 import PostReactions from './PostReactions';
@@ -234,6 +234,17 @@ const Post = ({ post, currentUser, navigate, onDelete }) => {
               <span className="text-gray-500 text-sm flex-shrink-0">
                 {post.createdAt ? formatDistanceToNow(new Date(post.createdAt), { addSuffix: true }) : 'Just now'}
               </span>
+              
+              {/* ✅ Message Button - Only show if not owner */}
+              {!isOwner && (
+                <button
+                  onClick={() => navigate && navigate('/chat', { state: { selectedUser: author } })}
+                  className="ml-2 flex items-center gap-1 px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-full transition-all"
+                >
+                  <Send className="w-3 h-3" />
+                  <span>Message</span>
+                </button>
+              )}
             </div>
             {author.headline && (
               <p className="text-sm text-gray-400 mt-1">{author.headline}</p>
