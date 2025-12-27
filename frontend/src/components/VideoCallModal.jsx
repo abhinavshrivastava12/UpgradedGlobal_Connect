@@ -1,9 +1,13 @@
+// VideoCallModal.jsx
+
 import React, { useEffect, useRef, useState } from 'react';
 import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, X, Maximize2, Minimize2 } from 'lucide-react';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import io from 'socket.io-client';
 
-const APP_ID = '04d8a9031217470bb3b5c0d6b7a0db55';
+// ✅ Use environment variable
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:8000';
+const APP_ID = import.meta.env.VITE_AGORA_APP_ID;
 
 function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUserId }) {
   const [muted, setMuted] = useState(false);
@@ -23,8 +27,7 @@ function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUs
   useEffect(() => {
     if (!isOpen) return;
 
-    const SOCKET_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:8000';
-    socketRef.current = io(SOCKET_URL, {
+    socketRef.current = io(SERVER_URL, {
       withCredentials: true,
       transports: ['websocket', 'polling']
     });
@@ -85,18 +88,13 @@ function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUs
   const initializeCall = async () => {
     try {
       console.log('📞 Initializing call...');
+      console.log('🌐 Backend URL:', SERVER_URL);
 
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No authentication token');
-      }
-
-      // ✅ FIXED: Better error handling
-      const response = await fetch('/api/agora/token', {
+      // ✅ FIX: Use full backend URL
+      const response = await fetch(`${SERVER_URL}/api/agora/token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         credentials: 'include',
         body: JSON.stringify({
@@ -105,50 +103,62 @@ function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUs
         })
       });
 
-      // ✅ CRITICAL: Check response before JSON parsing
+      console.log('📡 Response status:', response.status);
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Token request failed:', response.status, errorText);
+        console.error('❌ Token request failed:', response.status, errorText);
         throw new Error(`Failed to get token: ${response.status}`);
       }
 
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         const text = await response.text();
-        console.error('Non-JSON response:', text);
+        console.error('❌ Non-JSON response:', text);
         throw new Error('Server returned invalid response');
       }
 
       const data = await response.json();
+      console.log('✅ Token response:', data);
       
-      // ✅ Validate response
       if (!data || !data.success) {
-        console.error('Invalid response:', data);
+        console.error('❌ Invalid response:', data);
         throw new Error(data?.message || 'Invalid token response');
       }
 
       const { token: agoraToken, uid, appId } = data;
-      console.log('✅ Token received');
+      console.log('✅ Token received, UID:', uid);
 
+      // ✅ Create Agora client
       const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
       clientRef.current = client;
 
-      await client.join(appId || APP_ID, `call_${currentUserId}_${recipientId}`, agoraToken || null, uid);
+      // ✅ Join channel
+      await client.join(
+        appId || APP_ID, 
+        `call_${currentUserId}_${recipientId}`, 
+        agoraToken || null, 
+        uid
+      );
       console.log('✅ Joined channel');
 
+      // ✅ Create local tracks
       const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
       localAudioTrackRef.current = audioTrack;
       localVideoTrackRef.current = videoTrack;
 
+      // ✅ Play local video
       if (localVideoRef.current) {
         videoTrack.play(localVideoRef.current);
       }
 
+      // ✅ Publish tracks
       await client.publish([audioTrack, videoTrack]);
       console.log('✅ Published tracks');
 
       setCallStatus('ringing');
 
+      // ✅ Send call signal via Socket.io
       if (socketRef.current) {
         const email = localStorage.getItem('email') || '';
         socketRef.current.emit('callUser', {
@@ -163,6 +173,7 @@ function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUs
         console.log('📤 Call signal sent');
       }
 
+      // ✅ Handle remote user
       client.on('user-published', async (user, mediaType) => {
         console.log('📥 Remote published:', mediaType);
         await client.subscribe(user, mediaType);
