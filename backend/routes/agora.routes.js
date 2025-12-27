@@ -5,7 +5,7 @@ import isAuth from "../middlewares/isAuth.js";
 
 const router = Router();
 
-const APP_ID = process.env.AGORA_APP_ID || '04d8a9031217470bb3b5c0d6b7a0db55';
+const APP_ID = process.env.AGORA_APP_ID || 'ef988355eaba4008a6ccf392a7302e8c';
 const APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
 
 // ✅ COMPLETELY FIXED TOKEN GENERATION
