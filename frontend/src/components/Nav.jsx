@@ -88,14 +88,22 @@ function Nav() {
 
               {/* Dropdown Menu */}
               <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 rounded-xl shadow-2xl border border-slate-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
-                {/* ✅ FIXED: Profile link now goes to /profile without userName */}
-                <Link
-                  to="/profile"
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-slate-700 rounded-t-xl transition-all text-gray-300 hover:text-white"
+                {/* ✅ FIXED: Profile link now properly navigates to user profile */}
+                <button
+                  onClick={() => {
+                    if (userData?.userName) {
+                      navigate(`/profile/${userData.userName}`);
+                    } else if (userData?._id) {
+                      navigate(`/profile/${userData._id}`);
+                    } else {
+                      navigate('/profile');
+                    }
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700 rounded-t-xl transition-all text-gray-300 hover:text-white"
                 >
                   <User className="w-4 h-4" />
                   <span className="text-sm">My Profile</span>
-                </Link>
+                </button>
                 <button
                   onClick={handleLogout}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700 rounded-b-xl transition-all text-red-400 hover:text-red-300"

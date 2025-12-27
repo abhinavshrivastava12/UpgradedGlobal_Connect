@@ -5,7 +5,7 @@ import EditProfile from "../components/EditProfile";
 import { RxCross1 } from "react-icons/rx";
 import { BsImage } from "react-icons/bs";
 import { IoSparklesSharp } from "react-icons/io5";
-import { Bookmark, BarChart3 } from 'lucide-react';
+import { Bookmark, BarChart3, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from "axios";
 import Post from "../components/Post";
@@ -13,6 +13,7 @@ import AIChat from "../components/AIChat";
 import Stories from "../components/Stories";
 import TrendingHashtags from '../components/TrendingHashtags';
 import LiveStatus from '../components/LiveStatus';
+import Nav from '../components/Nav';
 
 const dp = 'https://ui-avatars.com/api/?name=User&size=200&background=6366f1&color=fff';
 
@@ -31,6 +32,9 @@ function Home() {
     following: 0,
     posts: 0
   });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
 
   const image = useRef();
 
@@ -104,6 +108,28 @@ function Home() {
     }
   };
 
+  const handleSearchUsers = async (query) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    
+    setSearching(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`/api/user/search?query=${query}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        withCredentials: true,
+      });
+      setSearchResults(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error("Error searching users:", error);
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+    }
+  };
+
   useEffect(() => {
     handleSuggestedUsers();
     fetchUserStats();
@@ -115,6 +141,7 @@ function Home() {
 
   return (
     <>
+      <Nav />
       {/* ✅ FIXED: Added pt-24 to prevent navbar overlap */}
       <div className="w-full min-h-screen bg-gradient-to-br from-[#0f1419] via-[#1a1f2e] to-[#0f1419] text-white flex flex-col lg:flex-row p-5 gap-5 pt-24">
         {edit && <EditProfile />}
@@ -198,6 +225,74 @@ function Home() {
           {/* Live Status */}
           <LiveStatus userId={userData?._id} userName={userData?.userName} />
 
+          {/* Search Users */}
+          <div className="bg-gradient-to-br from-[#1e293b] to-[#334155] rounded-2xl p-5 shadow-xl border border-slate-700">
+            <h3 className="font-semibold text-lg mb-4 flex items-center gap-2 text-white">
+              <Search className="text-purple-400" />
+              Search Users
+            </h3>
+            
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search by name or username..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  handleSearchUsers(e.target.value);
+                }}
+                className="w-full px-4 py-3 bg-slate-800 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 border border-slate-700"
+              />
+              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            </div>
+
+            {searching && (
+              <div className="mt-3 text-center text-gray-400">
+                <p>Searching...</p>
+              </div>
+            )}
+
+            {searchQuery && !searching && (
+              <div className="mt-3 flex flex-col gap-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+                {searchResults.length > 0 ? (
+                  searchResults.map((user) => (
+                    <div
+                      key={user._id}
+                      className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 cursor-pointer transition-all border border-slate-700/50 hover:border-purple-500/50"
+                      onClick={() => {
+                        if (user.userName) {
+                          navigate(`/profile/${user.userName}`);
+                        } else if (user._id) {
+                          navigate(`/profile/${user._id}`);
+                        }
+                        setSearchQuery("");
+                        setSearchResults([]);
+                      }}
+                    >
+                      <div className="w-[45px] h-[45px] rounded-full overflow-hidden border-2 border-purple-500">
+                        <img
+                          src={user.profileImage || dp}
+                          alt="User"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="flex flex-col flex-1">
+                        <span className="font-semibold text-white">
+                          {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.userName}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          @{user.userName}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-400 text-center py-4">No users found</p>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Suggested Users */}
           <div className="bg-gradient-to-br from-[#1e293b] to-[#334155] rounded-2xl p-5 shadow-xl border border-slate-700">
             <h3 className="font-semibold text-lg mb-4 flex items-center gap-2 text-white">
@@ -210,7 +305,13 @@ function Home() {
                   <div
                     key={su._id || su.userName}
                     className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 cursor-pointer transition-all border border-slate-700/50 hover:border-purple-500/50"
-                    onClick={() => su.userName && handleGetProfile(su.userName)}
+                    onClick={() => {
+                      if (su.userName) {
+                        navigate(`/profile/${su.userName}`);
+                      } else if (su._id) {
+                        navigate(`/profile/${su._id}`);
+                      }
+                    }}
                   >
                     <div className="w-[50px] h-[50px] rounded-full overflow-hidden border-2 border-purple-500">
                       <img
@@ -270,6 +371,7 @@ function Home() {
                     <Post 
                       post={post}
                       currentUser={userData}
+                      navigate={navigate}
                       onDelete={(postId) => {
                         getPost();
                       }}

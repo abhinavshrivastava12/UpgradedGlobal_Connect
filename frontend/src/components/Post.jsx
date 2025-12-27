@@ -5,7 +5,7 @@ import { formatDistanceToNow } from 'date-fns';
 import dp from '../assets/dp.webp';
 import PostReactions from './PostReactions';
 
-const Post = ({ post, currentUser, onDelete }) => {
+const Post = ({ post, currentUser, navigate, onDelete }) => {
   if (!post || !post._id) {
     console.error('Invalid post data:', post);
     return null;
@@ -184,27 +184,50 @@ const Post = ({ post, currentUser, onDelete }) => {
     }
   };
 
+  // ✅ Navigate to user profile
+  const navigateToProfile = (user) => {
+    if (!navigate) {
+      console.warn('Navigate function not provided');
+      return;
+    }
+    
+    if (user?.userName) {
+      navigate(`/profile/${user.userName}`);
+    } else if (user?._id) {
+      navigate(`/profile/${user._id}`);
+    }
+  };
+
   const isOwner = currentUser?._id === post.author?._id;
   const author = post.author || {};
 
   return (
     <div className="border-b border-slate-700 hover:bg-slate-800/50 transition-colors p-6">
-      {/* Header */}
+      {/* Header - ✅ CLICKABLE */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-start space-x-3 flex-1 min-w-0">
+          {/* ✅ Clickable Profile Image */}
           <img
             src={author.profileImage || dp}
             alt={author.userName || 'User'}
-            className="w-12 h-12 rounded-full flex-shrink-0 object-cover border-2 border-purple-500"
+            onClick={() => navigateToProfile(author)}
+            className="w-12 h-12 rounded-full flex-shrink-0 object-cover border-2 border-purple-500 cursor-pointer hover:border-purple-400 transition-all"
           />
           <div className="flex-1 min-w-0">
+            {/* ✅ Clickable Name & Username */}
             <div className="flex items-center flex-wrap gap-2">
-              <span className="font-bold text-white truncate">
+              <span 
+                onClick={() => navigateToProfile(author)}
+                className="font-bold text-white truncate cursor-pointer hover:text-purple-400 transition-colors"
+              >
                 {author.firstName && author.lastName 
                   ? `${author.firstName} ${author.lastName}` 
                   : author.userName || 'Unknown User'}
               </span>
-              <span className="text-gray-400 text-sm truncate">
+              <span 
+                onClick={() => navigateToProfile(author)}
+                className="text-gray-400 text-sm truncate cursor-pointer hover:text-purple-400 transition-colors"
+              >
                 @{author.userName || 'unknown'}
               </span>
               <span className="text-gray-500 text-sm">·</span>
@@ -264,7 +287,7 @@ const Post = ({ post, currentUser, onDelete }) => {
             <img
               src={post.image}
               alt="Post"
-              className="w-full max-h-[500px] object-cover cursor-pointer"
+              className="w-full max-h-[500px] object-cover cursor-pointer hover:opacity-95 transition-opacity"
               onClick={() => window.open(post.image, '_blank')}
             />
           </div>
@@ -275,7 +298,12 @@ const Post = ({ post, currentUser, onDelete }) => {
           <div className="mb-4 border border-slate-600 rounded-xl p-4 bg-slate-800/50">
             <div className="flex items-center gap-2 mb-2 text-gray-400 text-sm">
               <Repeat2 className="w-4 h-4" />
-              <span>Reposted from @{post.repostOf.author?.userName}</span>
+              <span 
+                onClick={() => navigateToProfile(post.repostOf.author)}
+                className="cursor-pointer hover:text-purple-400 transition-colors"
+              >
+                Reposted from @{post.repostOf.author?.userName}
+              </span>
             </div>
             {post.repostOf.description && (
               <p className="text-gray-300">{post.repostOf.description}</p>
@@ -385,6 +413,7 @@ const Post = ({ post, currentUser, onDelete }) => {
               </div>
             </form>
 
+            {/* ✅ Clickable Comments */}
             {comments.length > 0 && (
               <div className="space-y-4">
                 {comments.map((c, idx) => (
@@ -392,11 +421,15 @@ const Post = ({ post, currentUser, onDelete }) => {
                     <img
                       src={c.user?.profileImage || dp}
                       alt={c.user?.userName}
-                      className="w-10 h-10 rounded-full flex-shrink-0 object-cover border-2 border-purple-500"
+                      onClick={() => navigateToProfile(c.user)}
+                      className="w-10 h-10 rounded-full flex-shrink-0 object-cover border-2 border-purple-500 cursor-pointer hover:border-purple-400 transition-all"
                     />
                     <div className="flex-1 min-w-0">
                       <div className="bg-slate-700 rounded-2xl px-4 py-3">
-                        <p className="font-semibold text-sm text-white">
+                        <p 
+                          onClick={() => navigateToProfile(c.user)}
+                          className="font-semibold text-sm text-white cursor-pointer hover:text-purple-400 transition-colors"
+                        >
                           {c.user?.firstName && c.user?.lastName 
                             ? `${c.user.firstName} ${c.user.lastName}` 
                             : c.user?.userName || 'User'}
