@@ -5,6 +5,12 @@ import User from '../models/user.model.js';
 // Create Story
 export const createStory = async (req, res) => {
   try {
+    console.log('📸 Story creation request:', {
+      userId: req.userId,
+      hasFile: !!req.file,
+      body: req.body
+    });
+
     const { text } = req.body;
     
     if (!req.file) {
@@ -15,14 +21,18 @@ export const createStory = async (req, res) => {
     }
 
     // Upload to Cloudinary
+    console.log('☁️ Uploading to Cloudinary:', req.file.path);
     const mediaUrl = await uploadOnCloudinary(req.file.path);
     
     if (!mediaUrl) {
+      console.error('❌ Cloudinary upload failed');
       return res.status(500).json({ 
         success: false,
         message: 'Failed to upload media' 
       });
     }
+
+    console.log('✅ Cloudinary upload success:', mediaUrl);
 
     // Determine media type
     const mediaType = req.file.mimetype.startsWith('video/') ? 'video' : 'image';
@@ -38,16 +48,18 @@ export const createStory = async (req, res) => {
 
     await story.populate('user', 'firstName lastName userName profileImage');
 
+    console.log('✅ Story created:', story._id);
+
     res.status(201).json({
       success: true,
       story
     });
 
   } catch (error) {
-    console.error('Create story error:', error);
+    console.error('❌ Create story error:', error);
     res.status(500).json({ 
       success: false,
-      message: 'Failed to create story' 
+      message: 'Failed to create story: ' + error.message
     });
   }
 };

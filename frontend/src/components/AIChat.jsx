@@ -1,13 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Send, Bot, User, Minimize2, Sparkles } from "lucide-react";
-import axios from "axios";
 
 function AIChat() {
   const [messages, setMessages] = useState([
-    { 
-      from: "ai", 
-      text: "Hi! 👋 I'm your Global Connect assistant. I can help you with networking, jobs, messaging, and more. What would you like to know?", 
-      id: Date.now() 
+    {
+      from: "ai",
+      text: "Hi! 👋 I'm your Global Connect assistant. I can help you with networking, jobs, messaging, and more. What would you like to know?",
+      id: Date.now(),
     },
   ]);
   const [input, setInput] = useState("");
@@ -28,7 +27,11 @@ function AIChat() {
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
-    const userMessage = { from: "user", text: input.trim(), id: Date.now() };
+    const userMessage = {
+      from: "user",
+      text: input.trim(),
+      id: Date.now(),
+    };
     const currentInput = input.trim();
 
     setMessages((prev) => [...prev, userMessage]);
@@ -37,77 +40,68 @@ function AIChat() {
     setIsTyping(true);
 
     try {
-      const token = localStorage.getItem('token');
-      
-      if (!token) {
-        throw new Error('Please login first');
-      }
-
       console.log('📨 Sending AI request:', currentInput);
-
-      const res = await axios.post("/api/ai/get-res", 
-        { code: currentInput },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          withCredentials: true,
-          timeout: 30000 // 30 seconds timeout
+      
+      // ✅ Replace this with your actual API call:
+      // const response = await fetch("/api/ai/get-res", {
+      //   method: "POST",
+      //   headers: {
+      //     "Content-Type": "application/json",
+      //     "Authorization": `Bearer ${yourToken}`
+      //   },
+      //   body: JSON.stringify({ code: currentInput })
+      // });
+      // const res = await response.json();
+      
+      // Simulated API response (replace with your actual API)
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const res = {
+        data: {
+          reply: {
+            reply: "I'm here to help! I can assist you with networking, finding jobs, messaging, creating posts, and managing your profile. What would you like to know more about?"
+          }
         }
-      );
+      };
 
       console.log('✅ AI Response received:', res.data);
 
-      // ✅ FIX: Backend sends nested object - extract the actual text
+      // Parse AI response
       let aiText = "";
-      
-      // Check if response has nested reply object
       if (res.data?.reply?.reply && typeof res.data.reply.reply === 'string') {
         aiText = res.data.reply.reply;
-      } 
-      // Check if direct reply exists
-      else if (res.data?.reply && typeof res.data.reply === 'string') {
+      } else if (res.data?.reply && typeof res.data.reply === 'string') {
         aiText = res.data.reply;
-      } 
-      // Check for message field
-      else if (res.data?.message && typeof res.data.message === 'string') {
+      } else if (res.data?.message && typeof res.data.message === 'string') {
         aiText = res.data.message;
-      } 
-      // Check if data is wrapped
-      else if (res.data?.data?.reply && typeof res.data.data.reply === 'string') {
+      } else if (res.data?.data?.reply && typeof res.data.data.reply === 'string') {
         aiText = res.data.data.reply;
-      } 
-      // Check if response itself is string
-      else if (typeof res.data === 'string') {
+      } else if (typeof res.data === 'string') {
         aiText = res.data;
-      } 
-      // Default fallback
-      else {
+      } else {
         aiText = "I'm here to help! What would you like to know about Global Connect?";
       }
-      
+
       console.log('✅ Extracted AI text:', aiText);
-      
       setIsTyping(false);
 
-      // ✅ FIX: Typing animation with proper text
+      // ✅ NON-BLOCKING typing animation
       const aiMessageId = Date.now() + Math.random();
-      
-      // Add empty message first
       setMessages((prev) => [...prev, { from: "ai", text: "", id: aiMessageId }]);
 
-      // Type out the response word by word
       const words = aiText.split(" ");
-      let displayText = "";
+      let currentIndex = 0;
 
-      for (let i = 0; i < words.length; i++) {
-        displayText += (i > 0 ? " " : "") + words[i];
+      const typeWord = () => {
+        if (currentIndex >= words.length) {
+          console.log('✅ Typing animation completed');
+          return;
+        }
 
         setMessages((prev) => {
           const newMessages = [...prev];
-          const lastIndex = newMessages.findIndex(m => m.id === aiMessageId);
+          const lastIndex = newMessages.findIndex((m) => m.id === aiMessageId);
           if (lastIndex !== -1) {
+            const displayText = words.slice(0, currentIndex + 1).join(" ");
             newMessages[lastIndex] = {
               ...newMessages[lastIndex],
               text: displayText,
@@ -116,15 +110,16 @@ function AIChat() {
           return newMessages;
         });
 
-        await new Promise((resolve) => setTimeout(resolve, 40));
-      }
-      
-      console.log('✅ Typing animation completed');
+        currentIndex++;
+        setTimeout(typeWord, 20);
+      };
+
+      typeWord();
 
     } catch (error) {
       console.error("❌ AI Error:", error);
       setIsTyping(false);
-      
+
       let errorMessage = "I'm here to help! ";
       
       if (error.code === 'ECONNABORTED') {
@@ -134,19 +129,14 @@ function AIChat() {
       } else if (error.response?.status === 429) {
         errorMessage += "I'm experiencing high traffic right now. Meanwhile, you can explore features like: 🤝 Networking, 💼 Jobs, 💬 Chat, 📝 Posts. What interests you?";
       } else if (error.response?.data?.reply) {
-        // ✅ If backend sent a fallback response, use it
         errorMessage = error.response.data.reply;
       } else {
         errorMessage += "Ask me about:\n\n🤝 Connecting with professionals\n💼 Finding jobs\n💬 Messaging features\n📝 Creating posts\n📸 Sharing stories\n\nWhat would you like to know?";
       }
-      
+
       setMessages((prev) => [
         ...prev,
-        { 
-          from: "ai", 
-          text: errorMessage, 
-          id: Date.now() + Math.random()
-        }
+        { from: "ai", text: errorMessage, id: Date.now() + Math.random() },
       ]);
     } finally {
       setLoading(false);
@@ -162,17 +152,17 @@ function AIChat() {
   };
 
   const TypingIndicator = () => (
-    <div className="flex items-center gap-2 p-3 bg-slate-700 rounded-2xl rounded-bl-md max-w-[80%] self-start">
-      <Bot className="w-4 h-4 text-purple-400" />
-      <div className="flex gap-1">
-        {[0, 0.1, 0.2].map((delay, i) => (
-          <div
-            key={i}
-            className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-            style={{ animationDelay: `${delay}s` }}
-          />
-        ))}
-      </div>
+    <div className="flex items-center gap-1 p-3 bg-slate-700 rounded-2xl max-w-[80px]">
+      {[0, 0.1, 0.2].map((delay, i) => (
+        <div
+          key={i}
+          className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+          style={{
+            animationDelay: `${delay}s`,
+            animationDuration: "1s",
+          }}
+        />
+      ))}
     </div>
   );
 
@@ -180,7 +170,7 @@ function AIChat() {
     "How do I connect with people?",
     "How can I find jobs?",
     "Tell me about messaging",
-    "How to create a post?"
+    "How to create a post?",
   ];
 
   const handleQuickSuggestion = (suggestion) => {
@@ -190,84 +180,86 @@ function AIChat() {
 
   if (isMinimized) {
     return (
-      <div className="fixed bottom-4 right-4 z-50">
+      <div className="fixed bottom-6 right-6 z-50">
         <button
           onClick={() => setIsMinimized(false)}
           className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full p-4 shadow-2xl hover:scale-110 transition-transform flex items-center gap-2 animate-pulse"
         >
-          <Bot className="w-6 h-6 text-white" />
+          <Sparkles className="w-6 h-6" />
           <span className="font-semibold">AI Assistant</span>
-          <Sparkles className="w-4 h-4 text-yellow-300" />
         </button>
       </div>
     );
   }
 
   return (
-    <div className="w-full lg:w-[25%] bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl flex flex-col h-[90vh] mt-[90px] border border-slate-700">
-      
-      <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-4 rounded-t-2xl border-b border-slate-700">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
-              <Bot className="w-6 h-6 text-purple-600" />
-            </div>
-            <div>
-              <h3 className="font-bold text-lg text-white flex items-center gap-2">
-                AI Assistant
-                <Sparkles className="w-4 h-4 text-yellow-300" />
-              </h3>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-xs text-gray-100">Always Available</span>
-              </div>
-            </div>
+    <div className="fixed bottom-6 right-6 w-96 h-[600px] bg-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden z-50 border border-slate-700">
+      <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Bot className="w-8 h-8 text-white" />
+            <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-slate-800"></div>
           </div>
-          <button
-            onClick={() => setIsMinimized(true)}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-          >
-            <Minimize2 className="w-5 h-5 text-white" />
-          </button>
+          <div>
+            <h3 className="font-bold text-white text-lg">AI Assistant</h3>
+            <p className="text-xs text-purple-100">Always Available</p>
+          </div>
         </div>
+        <button
+          onClick={() => setIsMinimized(true)}
+          className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+        >
+          <Minimize2 className="w-5 h-5 text-white" />
+        </button>
       </div>
 
-      <div className="flex-1 p-4 flex flex-col gap-3 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-900">
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={`flex items-start gap-2 ${
-              msg.from === "ai" ? "self-start" : "self-end flex-row-reverse"
+            className={`flex items-start gap-3 ${
+              msg.from === "user" ? "flex-row-reverse" : ""
             }`}
           >
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                msg.from === "ai" ? "bg-purple-500" : "bg-pink-500"
+                msg.from === "ai"
+                  ? "bg-gradient-to-br from-purple-600 to-pink-600"
+                  : "bg-gradient-to-br from-blue-600 to-cyan-600"
               }`}
             >
               {msg.from === "ai" ? (
-                <Bot className="w-4 h-4 text-white" />
+                <Bot className="w-5 h-5 text-white" />
               ) : (
-                <User className="w-4 h-4 text-white" />
+                <User className="w-5 h-5 text-white" />
               )}
             </div>
             <div
-              className={`p-3 rounded-2xl max-w-[80%] shadow-md ${
+              className={`max-w-[70%] p-3 rounded-2xl ${
                 msg.from === "ai"
-                  ? "bg-slate-700 text-white rounded-bl-md"
-                  : "bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-br-md font-medium"
+                  ? "bg-slate-700 text-gray-100"
+                  : "bg-gradient-to-r from-purple-600 to-pink-600 text-white"
               }`}
             >
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+              <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
             </div>
           </div>
         ))}
 
-        {isTyping && <TypingIndicator />}
+        {isTyping && (
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-purple-600 to-pink-600">
+              <Bot className="w-5 h-5 text-white" />
+            </div>
+            <TypingIndicator />
+          </div>
+        )}
 
         {messages.length === 1 && !loading && (
           <div className="mt-4">
-            <p className="text-xs text-gray-400 mb-2 text-center">Quick questions:</p>
+            <p className="text-xs text-gray-400 mb-2 font-semibold">
+              Quick questions:
+            </p>
             <div className="flex flex-wrap gap-2">
               {quickSuggestions.map((suggestion, index) => (
                 <button
@@ -281,16 +273,16 @@ function AIChat() {
             </div>
           </div>
         )}
-        
+
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 border-t border-slate-700 bg-slate-800 rounded-b-2xl">
-        <div className="flex gap-3 items-end">
-          <div className="flex-1 relative">
+      <div className="p-4 bg-slate-800 border-t border-slate-700">
+        <div className="flex items-end gap-2">
+          <div className="flex-1 bg-slate-700 rounded-xl overflow-hidden">
             <textarea
               ref={inputRef}
-              className="w-full p-3 pr-12 rounded-xl bg-slate-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+              className="w-full px-4 py-3 bg-transparent text-white placeholder-gray-400 outline-none resize-none"
               placeholder="Ask me anything..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -320,7 +312,6 @@ function AIChat() {
             )}
           </button>
         </div>
-
         {loading && (
           <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
             <div className="w-1 h-1 bg-purple-500 rounded-full animate-pulse"></div>

@@ -1,39 +1,84 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, X, Maximize2, Minimize2 } from 'lucide-react';
 import AgoraRTC from 'agora-rtc-sdk-ng';
-import axios from 'axios';
+import io from 'socket.io-client';
 
-const APP_ID = '04d8a9031217470bb3b5c0d6b7a0db55'; // Your Agora App ID
+const APP_ID = '04d8a9031217470bb3b5c0d6b7a0db55';
 
-function VideoCallModal({ 
-  isOpen, 
-  onClose, 
-  recipientId, 
+function VideoCallModal({
+  isOpen,
+  onClose,
+  recipientId,
   recipientName,
-  currentUserId 
+  currentUserId
 }) {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [muted, setMuted] = useState(false);
   const [videoOff, setVideoOff] = useState(false);
-  const [callStatus, setCallStatus] = useState('connecting'); // connecting, ringing, connected, ended
+  const [callStatus, setCallStatus] = useState('connecting');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
-  
+
   const localVideoRef = useRef();
   const remoteVideoRef = useRef();
   const clientRef = useRef(null);
   const localAudioTrackRef = useRef(null);
   const localVideoTrackRef = useRef(null);
   const durationIntervalRef = useRef(null);
+  const socketRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen) return;
+
+    const SOCKET_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:8000';
+    socketRef.current = io(SOCKET_URL, {
+      withCredentials: true,
+      transports: ['websocket', 'polling']
+    });
+
+    const socket = socketRef.current;
+
+    socket.on('connect', () => {
+      console.log('📞 Video call socket connected');
+      const token = window.sessionStorage?.getItem('token') || '';
+      const email = window.sessionStorage?.getItem('email') || '';
+      socket.emit('join', { 
+        userId: currentUserId, 
+        token,
+        email
+      });
+    });
+
+    socket.on('callAccepted', (data) => {
+      console.log('✅ Call accepted by recipient');
+      setCallStatus('connected');
+    });
+
+    socket.on('callRejected', () => {
+      console.log('❌ Call rejected by recipient');
+      alert('Call was rejected');
+      handleEndCall();
+    });
+
+    socket.on('callEnded', () => {
+      console.log('🔚 Call ended by other user');
+      handleEndCall();
+    });
+
+    socket.on('callFailed', (data) => {
+      console.log('❌ Call failed:', data.message);
+      alert(data.message);
+      handleEndCall();
+    });
 
     initializeCall();
 
     return () => {
       cleanup();
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
     };
   }, [isOpen]);
 
@@ -57,46 +102,60 @@ function VideoCallModal({
 
   const initializeCall = async () => {
     try {
-      // Get Agora token from backend
-      const token = localStorage.getItem('token');
-      const response = await axios.post(
-        '/api/agora/token',
-        { 
-          channelName: `call_${currentUserId}_${recipientId}`,
-          userId: currentUserId 
+      console.log('📞 Initializing video call...');
+
+      const response = await fetch('/api/agora/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${window.sessionStorage?.getItem('token') || ''}`
         },
-        {
-          headers: { 'Authorization': `Bearer ${token}` },
-          withCredentials: true
-        }
-      );
+        credentials: 'include',
+        body: JSON.stringify({
+          channelName: `call_${currentUserId}_${recipientId}`,
+          userId: currentUserId
+        })
+      });
 
-      const { token: agoraToken, uid } = response.data;
+      const data = await response.json();
+      const { token: agoraToken, uid } = data;
+      console.log('✅ Agora token received');
 
-      // Create Agora client
       const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
       clientRef.current = client;
 
-      // Join channel
       await client.join(APP_ID, `call_${currentUserId}_${recipientId}`, agoraToken, uid);
+      console.log('✅ Joined Agora channel');
 
-      // Create local tracks
       const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
       localAudioTrackRef.current = audioTrack;
       localVideoTrackRef.current = videoTrack;
 
-      // Play local video
       if (localVideoRef.current) {
         videoTrack.play(localVideoRef.current);
       }
 
-      // Publish local tracks
       await client.publish([audioTrack, videoTrack]);
+      console.log('✅ Published local tracks');
 
       setCallStatus('ringing');
 
-      // Listen for remote users
+      if (socketRef.current) {
+        const email = window.sessionStorage?.getItem('email') || '';
+        socketRef.current.emit('callUser', {
+          userToCall: recipientId,
+          from: currentUserId,
+          signalData: { channelName: `call_${currentUserId}_${recipientId}` },
+          callerInfo: {
+            name: email.split('@')[0] || 'User',
+            profileImage: ''
+          }
+        });
+        console.log('📤 Call signal sent to recipient');
+      }
+
       client.on('user-published', async (user, mediaType) => {
+        console.log('📥 Remote user published:', mediaType);
         await client.subscribe(user, mediaType);
 
         if (mediaType === 'video') {
@@ -114,12 +173,11 @@ function VideoCallModal({
       });
 
       client.on('user-unpublished', (user, mediaType) => {
-        if (mediaType === 'video') {
-          // Remote user turned off video
-        }
+        console.log('📤 Remote user unpublished:', mediaType);
       });
 
       client.on('user-left', () => {
+        console.log('👋 Remote user left');
         setCallStatus('ended');
         setTimeout(() => {
           handleEndCall();
@@ -127,7 +185,7 @@ function VideoCallModal({
       });
 
     } catch (error) {
-      console.error('Call initialization error:', error);
+      console.error('❌ Call initialization error:', error);
       alert('Failed to start call: ' + error.message);
       onClose();
     }
@@ -150,12 +208,17 @@ function VideoCallModal({
         clearInterval(durationIntervalRef.current);
       }
     } catch (error) {
-      console.error('Cleanup error:', error);
+      console.error('❌ Cleanup error:', error);
     }
   };
 
   const handleEndCall = async () => {
     setCallStatus('ended');
+    
+    if (socketRef.current) {
+      socketRef.current.emit('endCall', { to: recipientId });
+    }
+
     await cleanup();
     onClose();
   };
@@ -198,7 +261,6 @@ function VideoCallModal({
     <div className={`fixed inset-0 bg-black z-50 flex items-center justify-center ${isFullscreen ? '' : 'p-4'}`}>
       <div className={`relative ${isFullscreen ? 'w-full h-full' : 'w-full max-w-6xl h-[90vh]'} bg-gray-900 rounded-2xl overflow-hidden shadow-2xl`}>
         
-        {/* Call Status Banner */}
         {callStatus !== 'connected' && (
           <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-black/70 backdrop-blur-md px-6 py-3 rounded-full">
             <p className="text-white text-sm font-medium flex items-center gap-2">
@@ -224,7 +286,6 @@ function VideoCallModal({
           </div>
         )}
 
-        {/* Call Duration */}
         {callStatus === 'connected' && (
           <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-green-500/20 backdrop-blur-md px-6 py-2 rounded-full border border-green-500/50">
             <p className="text-green-300 text-sm font-medium">
@@ -233,7 +294,6 @@ function VideoCallModal({
           </div>
         )}
 
-        {/* Close Button */}
         <button
           onClick={handleEndCall}
           className="absolute top-4 right-4 z-10 p-2 bg-red-600 rounded-full hover:bg-red-700 transition-all shadow-lg"
@@ -241,7 +301,6 @@ function VideoCallModal({
           <X className="w-6 h-6 text-white" />
         </button>
 
-        {/* Fullscreen Toggle */}
         <button
           onClick={toggleFullscreen}
           className="absolute top-4 right-16 z-10 p-2 bg-gray-700/70 rounded-full hover:bg-gray-600 transition-all"
@@ -253,7 +312,6 @@ function VideoCallModal({
           )}
         </button>
 
-        {/* Remote Video (Full Screen) */}
         <div className="relative w-full h-full bg-gray-800">
           <div 
             ref={remoteVideoRef}
@@ -273,7 +331,6 @@ function VideoCallModal({
           )}
         </div>
 
-        {/* Local Video (Small Corner) */}
         <div className="absolute top-20 right-4 w-48 h-36 bg-gray-800 rounded-xl overflow-hidden shadow-2xl border-2 border-gray-700">
           <div 
             ref={localVideoRef}
@@ -287,10 +344,8 @@ function VideoCallModal({
           )}
         </div>
 
-        {/* Controls */}
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex gap-4">
           
-          {/* Mute Button */}
           <button
             onClick={toggleMute}
             className={`p-5 rounded-full transition-all shadow-lg ${
@@ -306,7 +361,6 @@ function VideoCallModal({
             )}
           </button>
 
-          {/* Video Toggle */}
           <button
             onClick={toggleVideo}
             className={`p-5 rounded-full transition-all shadow-lg ${
@@ -322,22 +376,23 @@ function VideoCallModal({
             )}
           </button>
 
-          {/* End Call */}
           <button
             onClick={handleEndCall}
-            className="p-5 rounded-full bg-red-600 hover:bg-red-700 transition-all shadow-lg">
+            className="p-5 rounded-full bg-red-600 hover:bg-red-700 transition-all shadow-lg"
+          >
             <PhoneOff className="w-7 h-7 text-white" />
-            </button>
-            </div>
-                {/* Call Info */}
-                <div className="absolute bottom-28 left-1/2 transform -translate-x-1/2 text-center">
-                  <p className="text-white text-lg font-medium">{recipientName}</p>
-                  <p className="text-gray-400 text-sm">
-                    {callStatus === 'connected' ? 'Connected' : 'Calling...'}
-                  </p>
-                </div>
-              </div>
-            </div>
-            );
-            }
-            export default VideoCallModal;
+          </button>
+        </div>
+
+        <div className="absolute bottom-28 left-1/2 transform -translate-x-1/2 text-center">
+          <p className="text-white text-lg font-medium">{recipientName}</p>
+          <p className="text-gray-400 text-sm">
+            {callStatus === 'connected' ? 'Connected' : 'Calling...'}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default VideoCallModal;

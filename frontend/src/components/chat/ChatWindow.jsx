@@ -45,9 +45,10 @@ function ChatWindow() {
       const response = await axios.get('/api/chat/inbox', config);
       if (response.data.success) {
         setConversations(response.data.data || []);
+        console.log('✅ Inbox loaded:', response.data.data?.length, 'conversations');
       }
     } catch (error) {
-      console.error('Load inbox error:', error);
+      console.error('❌ Load inbox error:', error);
     }
   };
 
@@ -62,15 +63,17 @@ function ChatWindow() {
       const response = await axios.get(`/api/chat/history/${otherUserId}`, config);
       if (response.data.success) {
         setMessages(response.data.items || []);
+        console.log('✅ Chat history loaded:', response.data.items?.length, 'messages');
       }
     } catch (error) {
-      console.error('Load history error:', error);
+      console.error('❌ Load history error:', error);
       setMessages([]);
     } finally {
       setLoading(false);
     }
   };
 
+  // ✅ SOCKET CONNECTION
   useEffect(() => {
     if (!token || !userId) {
       console.error("❌ No auth data");
@@ -78,12 +81,16 @@ function ChatWindow() {
     }
 
     if (!socketRef.current) {
-      console.log('🔌 Initializing socket connection...');
-      // ✅ FIXED: Use environment variable or default
+      console.log('🔌 Connecting to socket...');
       const SOCKET_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:8000';
+      console.log('🔗 Socket URL:', SOCKET_URL);
+      
       socketRef.current = io(SOCKET_URL, {
         withCredentials: true,
-        transports: ['websocket', 'polling']
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
       });
     }
 
@@ -92,7 +99,7 @@ function ChatWindow() {
     const onConnect = () => {
       console.log('✅ Socket Connected:', socket.id);
       setConnectionStatus('connected');
-      socket.emit('join', { token, userId });
+      socket.emit('join', { token, userId, email: localStorage.getItem('email') });
       loadInbox();
     };
 
@@ -101,14 +108,43 @@ function ChatWindow() {
       setConnectionStatus('disconnected');
     };
 
+    // ✅ REAL-TIME MESSAGE RECEIVER
     const onReceiveMessage = (msg) => {
-      console.log('📨 Message received:', msg);
+      console.log('📨 New message received:', msg);
       
-      if (selectedUser && (msg.from._id === selectedUser._id || msg.to._id === selectedUser._id)) {
-        setMessages(prev => [...prev, msg]);
+      // Update messages if chat is open with this user
+      if (selectedUser && (
+        msg.from._id === selectedUser._id || 
+        msg.to._id === selectedUser._id
+      )) {
+        setMessages(prev => {
+          // Check if message already exists
+          const exists = prev.some(m => m._id === msg._id);
+          if (exists) return prev;
+          return [...prev, msg];
+        });
+        scrollToBottom();
       }
       
+      // Always reload inbox to show new message
       loadInbox();
+    };
+
+    const onMessageSent = (msg) => {
+      console.log('✅ Message sent confirmation:', msg);
+      
+      // Add to current chat if open
+      if (selectedUser && (
+        msg.from._id === userId || 
+        msg.to._id === selectedUser._id
+      )) {
+        setMessages(prev => {
+          const exists = prev.some(m => m._id === msg._id);
+          if (exists) return prev;
+          return [...prev, msg];
+        });
+        scrollToBottom();
+      }
     };
 
     const onUserTyping = (data) => {
@@ -122,6 +158,7 @@ function ChatWindow() {
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('receiveMessage', onReceiveMessage);
+    socket.on('messageSent', onMessageSent);
     socket.on('userTyping', onUserTyping);
     socket.on('userStoppedTyping', () => setTyping(null));
 
@@ -135,6 +172,7 @@ function ChatWindow() {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       socket.off('receiveMessage', onReceiveMessage);
+      socket.off('messageSent', onMessageSent);
       socket.off('userTyping', onUserTyping);
       socket.off('userStoppedTyping');
       clearTimeout(typingTimeoutRef.current);
@@ -144,7 +182,7 @@ function ChatWindow() {
   useEffect(() => {
     return () => {
       if (socketRef.current) {
-        console.log('🔌 Disconnecting socket on unmount...');
+        console.log('🔌 Disconnecting socket...');
         socketRef.current.disconnect();
         socketRef.current = null;
       }
@@ -153,6 +191,7 @@ function ChatWindow() {
 
   const handleSelectUser = (conv) => {
     const user = conv.userInfo;
+    console.log('👤 Selected user:', user);
     setSelectedUser(user);
     setMessages([]);
     setTyping(null);
@@ -197,7 +236,7 @@ function ChatWindow() {
         const response = await axios.post('/api/upload/image', formData, config);
         imageUrl = response.data.url;
       } catch (error) {
-        console.error('Image upload error:', error);
+        console.error('❌ Image upload error:', error);
         alert('Failed to upload image');
         return;
       }
@@ -211,6 +250,7 @@ function ChatWindow() {
       timestamp: new Date().toISOString()
     };
 
+    console.log('📤 Sending message:', msgData);
     socketRef.current?.emit('sendMessage', msgData);
     
     setMessage('');
@@ -225,7 +265,7 @@ function ChatWindow() {
   };
 
   const handleVideoCall = () => {
-    console.log('📹 Opening video call with:', selectedUser);
+    console.log('📹 Starting video call with:', selectedUser);
     setShowVideoCall(true);
   };
 

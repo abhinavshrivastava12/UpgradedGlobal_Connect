@@ -12,14 +12,13 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-// ✅ FIXED: Dynamic CORS configuration
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
-console.log('🌍 Configured CLIENT_URL:', CLIENT_URL);  // Debug log
+console.log('🌍 Configured CLIENT_URL:', CLIENT_URL);
 
 const io = new Server(server, {
   cors: {
-    origin: CLIENT_URL,  // Ab yeh .env se aayega
+    origin: CLIENT_URL,
     methods: ['GET', 'POST'],
     credentials: true
   },
@@ -28,7 +27,6 @@ const io = new Server(server, {
   pingInterval: 25000
 });
 
-// ✅ FIXED: Dynamic CORS for Express
 app.use(cors({
   origin: CLIENT_URL,
   credentials: true
@@ -54,15 +52,16 @@ io.on('connection', (socket) => {
       userSocketMap.set(userId, socket.id);
       socket.userId = userId;
       socket.email = email;
-      console.log('👤 User registered:', userId);
+      console.log('👤 User registered:', userId, 'Socket:', socket.id);
       
       io.emit('onlineUsers', Array.from(userSocketMap.keys()));
       io.emit('active-users', Array.from(userSocketMap.keys()));
     }
   });
 
+  // ✅ IMPROVED: Message handling with better logging
   socket.on('sendMessage', async (data) => {
-    console.log('📨 Message received:', data);
+    console.log('📨 Message received from', data.from, 'to', data.to);
     
     try {
       const message = await Message.create({
@@ -99,14 +98,20 @@ io.on('connection', (socket) => {
       };
 
       const recipientSocketId = userSocketMap.get(data.to);
+      console.log(`📤 Looking for recipient ${data.to}, socketId:`, recipientSocketId);
+      
       if (recipientSocketId) {
         io.to(recipientSocketId).emit('receiveMessage', messageData);
+        console.log('✅ Message delivered to recipient');
+      } else {
+        console.log('⚠️ Recipient offline, message saved to DB');
       }
 
       socket.emit('messageSent', messageData);
+      console.log('✅ Confirmation sent to sender');
 
     } catch (error) {
-      console.error('Message save error:', error);
+      console.error('❌ Message error:', error);
       socket.emit('messageError', { error: 'Failed to send message' });
     }
   });
@@ -128,42 +133,65 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ✅ IMPROVED: Video call handling
   socket.on('callUser', (data) => {
+    console.log('📞 Incoming call from:', data.from, 'to:', data.userToCall);
+    console.log('📞 Caller info:', data.callerInfo);
+    
     const recipientSocketId = userSocketMap.get(data.userToCall);
+    console.log('📞 Recipient socket:', recipientSocketId);
+    
     if (recipientSocketId) {
       io.to(recipientSocketId).emit('incomingCall', {
         signal: data.signalData,
         from: data.from,
         callerInfo: data.callerInfo
       });
+      console.log('✅ Call notification sent successfully');
+    } else {
+      console.log('❌ User not online');
+      socket.emit('callFailed', { 
+        message: 'User is not available' 
+      });
     }
   });
 
   socket.on('answerCall', (data) => {
+    console.log('✅ Call answered by:', socket.userId);
+    
     const callerSocketId = userSocketMap.get(data.to);
+    console.log('📞 Caller socket:', callerSocketId);
+    
     if (callerSocketId) {
       io.to(callerSocketId).emit('callAccepted', {
         signal: data.signal,
         from: socket.userId
       });
+      console.log('✅ Answer sent to caller');
     }
   });
 
   socket.on('rejectCall', (data) => {
+    console.log('❌ Call rejected by:', socket.userId);
+    
     const callerSocketId = userSocketMap.get(data.to);
     if (callerSocketId) {
       io.to(callerSocketId).emit('callRejected', {
         from: socket.userId
       });
+      console.log('✅ Rejection sent to caller');
     }
   });
 
   socket.on('endCall', (data) => {
+    console.log('🔚 Call ended by:', socket.userId);
+    
     const recipientSocketId = userSocketMap.get(data.to);
     if (recipientSocketId) {
       io.to(recipientSocketId).emit('callEnded', {
         from: socket.userId
       });
+      console.log('✅ End call notification sent');
     }
   });
 
@@ -228,11 +256,11 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     success: true, 
     message: 'Server is running',
-    socketConnected: io.engine.clientsCount
+    socketConnected: io.engine.clientsCount,
+    onlineUsers: userSocketMap.size
   });
 });
 
-// Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({
@@ -245,7 +273,7 @@ const PORT = process.env.PORT || 8000;
 
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📡 Socket.io ready for connections`);
+  console.log(`📡 Socket.io ready`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Client URL: ${CLIENT_URL}`);
 });
