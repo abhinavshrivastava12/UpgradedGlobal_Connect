@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from 'react'
 import { userDataContext } from '../context/UserContext'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
+import { Send } from 'lucide-react'
 import io from 'socket.io-client'
 
 const socket = io(import.meta.env.VITE_SERVER_URL || 'http://localhost:8000', {
@@ -9,7 +10,7 @@ const socket = io(import.meta.env.VITE_SERVER_URL || 'http://localhost:8000', {
   transports: ['websocket', 'polling']
 });
 
-function ConnectionButton({ userId }) {
+function ConnectionButton({ userId, userDetails }) {
   const { userData } = useContext(userDataContext)
   const [status, setStatus] = useState("loading")
   const [loading, setLoading] = useState(false)
@@ -98,6 +99,20 @@ function ConnectionButton({ userId }) {
     }
   }
 
+  // ✅ NEW: Handle message button
+  const handleMessage = () => {
+    navigate('/chat', { 
+      state: { 
+        selectedUser: userDetails || {
+          _id: userId,
+          userName: 'user',
+          firstName: 'User',
+          lastName: ''
+        }
+      } 
+    });
+  }
+
   useEffect(() => {
     if (!userId || !userData?._id) return
     
@@ -152,6 +167,29 @@ function ConnectionButton({ userId }) {
       case "loading": return "..."
       default: return "Connect"
     }
+  }
+
+  // ✅ Show both buttons when connected
+  if (status === "disconnect") {
+    return (
+      <div className="flex flex-col gap-3 w-full">
+        <button 
+          className="min-w-[140px] px-6 py-3 rounded-full font-semibold transition-all shadow-lg hover:scale-105 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-purple-600"
+          onClick={handleClick}
+        >
+          Connected ✓
+        </button>
+        
+        {/* ✅ MESSAGE BUTTON - Shows when connected */}
+        <button
+          onClick={handleMessage}
+          className="min-w-[140px] px-6 py-3 rounded-full font-semibold transition-all shadow-lg hover:scale-105 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white flex items-center justify-center gap-2"
+        >
+          <Send className="w-5 h-5" />
+          Message
+        </button>
+      </div>
+    )
   }
 
   return (
