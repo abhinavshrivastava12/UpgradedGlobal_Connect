@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Video, Send, Users, Wifi, WifiOff, Image, X } from 'lucide-react';
+import { Video, Send, Users, Wifi, WifiOff, X, Phone } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import io from 'socket.io-client';
 import axios from 'axios';
@@ -12,23 +12,22 @@ function ChatWindow() {
   const location = useLocation();
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState('');
-  const [selectedImage, setSelectedImage] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [typing, setTyping] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [loading, setLoading] = useState(false);
   const [showVideoCall, setShowVideoCall] = useState(false);
+  const [incomingCall, setIncomingCall] = useState(null);
   
   const messageEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
-  const fileInputRef = useRef(null);
   const socketRef = useRef(null);
   const hasAutoSelectedRef = useRef(false);
   
   const token = localStorage.getItem('token');
   const userId = localStorage.getItem('userId');
+  const email = localStorage.getItem('email');
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -72,7 +71,6 @@ function ChatWindow() {
     }
   };
 
-  // ✅ FIX: Auto-select user from post (once only)
   useEffect(() => {
     const userFromPost = location.state?.selectedUser;
     
@@ -91,40 +89,56 @@ function ChatWindow() {
         loadChatHistory(userFromPost._id);
       }
       
-      // Clear location state
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [conversations]);
 
-  // ✅ SOCKET CONNECTION
+  // ✅ FIXED: Socket Connection with proper registration
   useEffect(() => {
-    if (!token || !userId) return;
-
-    if (!socketRef.current) {
-      const SOCKET_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:8000';
-      
-      socketRef.current = io(SOCKET_URL, {
-        withCredentials: true,
-        transports: ['websocket', 'polling'],
-        reconnection: true
-      });
+    if (!token || !userId) {
+      console.error('❌ Missing token or userId');
+      return;
     }
+
+    console.log('🔌 Initializing socket connection...');
+    console.log('   User ID:', userId);
+    console.log('   Email:', email);
+
+    const SOCKET_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:8000';
+    console.log('   Server URL:', SOCKET_URL);
+    
+    socketRef.current = io(SOCKET_URL, {
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5
+    });
 
     const socket = socketRef.current;
 
     const onConnect = () => {
-      console.log('✅ Socket Connected');
+      console.log('✅ Socket Connected:', socket.id);
       setConnectionStatus('connected');
-      socket.emit('join', { token, userId, email: localStorage.getItem('email') });
+      
+      // ✅ CRITICAL: Register user immediately
+      console.log('📝 Registering user with socket...');
+      socket.emit('join', { 
+        userId, 
+        email, 
+        token 
+      });
+      
       loadInbox();
     };
 
-    const onDisconnect = () => {
-      console.log('❌ Disconnected');
+    const onDisconnect = (reason) => {
+      console.log('❌ Socket Disconnected:', reason);
       setConnectionStatus('disconnected');
     };
 
     const onReceiveMessage = (msg) => {
+      console.log('📨 Message received:', msg);
       setMessages(prev => {
         if (prev.some(m => m._id === msg._id)) return prev;
         if (selectedUser && (msg.from._id === selectedUser._id || msg.to._id === selectedUser._id)) {
@@ -136,6 +150,7 @@ function ChatWindow() {
     };
 
     const onMessageSent = (msg) => {
+      console.log('✅ Message sent confirmation:', msg);
       setMessages(prev => {
         if (prev.some(m => m._id === msg._id)) return prev;
         if (selectedUser && (msg.from._id === userId || msg.to._id === selectedUser._id)) {
@@ -153,38 +168,46 @@ function ChatWindow() {
       }
     };
 
+    // ✅ FIXED: Incoming call handler
+    const onIncomingCall = (data) => {
+      console.log('📞 ========== INCOMING CALL RECEIVED ==========');
+      console.log('   From:', data.from);
+      console.log('   Caller Info:', data.callerInfo);
+      console.log('   Signal:', data.signal);
+      
+      setIncomingCall(data);
+    };
+
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('receiveMessage', onReceiveMessage);
     socket.on('messageSent', onMessageSent);
     socket.on('userTyping', onUserTyping);
     socket.on('userStoppedTyping', () => setTyping(null));
+    socket.on('incomingCall', onIncomingCall);
 
-    if (!socket.connected) socket.connect();
-    else onConnect();
+    if (!socket.connected) {
+      socket.connect();
+    } else {
+      onConnect();
+    }
 
     return () => {
+      console.log('🔌 Cleaning up socket listeners');
       socket.off('connect');
       socket.off('disconnect');
       socket.off('receiveMessage');
       socket.off('messageSent');
       socket.off('userTyping');
       socket.off('userStoppedTyping');
+      socket.off('incomingCall');
+      socket.disconnect();
     };
-  }, [userId, token, selectedUser?._id]);
+  }, [userId, token, email, selectedUser?._id]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages.length]);
-
-  useEffect(() => {
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
-    };
-  }, []);
 
   const handleSelectUser = (conv) => {
     setSelectedUser(conv.userInfo);
@@ -195,7 +218,7 @@ function ChatWindow() {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if ((!message.trim() && !selectedImage) || !selectedUser) return;
+    if (!message.trim() || !selectedUser) return;
 
     const msgData = {
       from: userId,
@@ -205,8 +228,34 @@ function ChatWindow() {
       timestamp: new Date().toISOString()
     };
 
-    socketRef.current?.emit('sendMessage', msgData);
-    setMessage('');
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('sendMessage', msgData);
+      setMessage('');
+    } else {
+      console.error('❌ Socket not connected');
+      alert('Connection lost. Please refresh the page.');
+    }
+  };
+
+  const handleAcceptCall = () => {
+    if (incomingCall) {
+      setShowVideoCall(true);
+      setSelectedUser({
+        _id: incomingCall.from,
+        userName: incomingCall.callerInfo.name,
+        firstName: incomingCall.callerInfo.name,
+        lastName: '',
+        profileImage: incomingCall.callerInfo.profileImage
+      });
+      setIncomingCall(null);
+    }
+  };
+
+  const handleRejectCall = () => {
+    if (incomingCall && socketRef.current?.connected) {
+      socketRef.current.emit('rejectCall', { to: incomingCall.from });
+      setIncomingCall(null);
+    }
   };
 
   const getUserName = (user) => {
@@ -363,6 +412,36 @@ function ChatWindow() {
           )}
         </main>
       </div>
+
+      {/* ✅ Incoming Call Popup */}
+      {incomingCall && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center">
+          <div className="bg-slate-800 rounded-2xl p-8 text-center max-w-md">
+            <div className="w-24 h-24 bg-purple-600 rounded-full mx-auto mb-4 flex items-center justify-center animate-pulse">
+              <Phone className="w-12 h-12 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Incoming Call</h2>
+            <p className="text-gray-300 mb-6">{incomingCall.callerInfo.name} is calling...</p>
+            
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={handleRejectCall}
+                className="px-6 py-3 bg-red-600 hover:bg-red-700 rounded-full text-white font-semibold flex items-center gap-2"
+              >
+                <X className="w-5 h-5" />
+                Decline
+              </button>
+              <button
+                onClick={handleAcceptCall}
+                className="px-6 py-3 bg-green-600 hover:bg-green-700 rounded-full text-white font-semibold flex items-center gap-2 animate-pulse"
+              >
+                <Phone className="w-5 h-5" />
+                Answer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showVideoCall && selectedUser && (
         <VideoCallModal
