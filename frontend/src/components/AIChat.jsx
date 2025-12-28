@@ -62,25 +62,35 @@ function AIChat() {
       console.log('✅ AI Response received:', response.data);
       setIsTyping(false);
 
-      // ✅ Parse AI response correctly
+      // ✅ Parse AI response correctly - handle nested objects
       let aiText = "";
-      if (response.data?.reply) {
+      
+      // Try different response structures
+      if (response.data?.reply?.reply && typeof response.data.reply.reply === 'string') {
+        aiText = response.data.reply.reply;
+      } else if (response.data?.reply && typeof response.data.reply === 'string') {
         aiText = response.data.reply;
-      } else if (response.data?.message) {
+      } else if (response.data?.message && typeof response.data.message === 'string') {
         aiText = response.data.message;
       } else if (typeof response.data === 'string') {
         aiText = response.data;
+      } else if (response.data?.reply && typeof response.data.reply === 'object') {
+        // Handle nested object case
+        aiText = JSON.stringify(response.data.reply);
       } else {
         aiText = "I'm here to help! What would you like to know about Global Connect?";
       }
 
       console.log('✅ Extracted AI text:', aiText);
+      console.log('✅ AI text type:', typeof aiText);
 
-      // ✅ NON-BLOCKING typing animation
+      // ✅ NON-BLOCKING typing animation - ENSURE STRING
       const aiMessageId = Date.now() + Math.random();
       setMessages((prev) => [...prev, { from: "ai", text: "", id: aiMessageId }]);
 
-      const words = aiText.split(" ");
+      // ✅ CRITICAL: Convert to string if not already
+      const textToType = typeof aiText === 'string' ? aiText : String(aiText);
+      const words = textToType.split(" ");
       let currentIndex = 0;
 
       const typeWord = () => {
