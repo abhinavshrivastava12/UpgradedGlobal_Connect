@@ -30,7 +30,6 @@ function JobBoard() {
   const [resume, setResume] = useState(null);
   const [isApplying, setIsApplying] = useState(false);
 
-  // Add axios interceptor to include auth token
   useEffect(() => {
     const token = localStorage.getItem('token');
     
@@ -40,12 +39,10 @@ function JobBoard() {
     }
   }, []);
 
-  // Fetch Jobs
   const fetchJobs = async () => {
     try {
       const res = await axios.get("/api/jobs");
       
-      // ✅ Corrected: Check if the response data is an array
       if (Array.isArray(res.data)) {
         setJobs(res.data);
       } else {
@@ -65,7 +62,6 @@ function JobBoard() {
     fetchJobs();
   }, []);
 
-  // Add Job
   const addJob = async () => {
     if (!title || !company || !location || !description) {
       toast.error("All fields are required!");
@@ -105,7 +101,6 @@ function JobBoard() {
     }
   };
 
-  // Delete Job
   const deleteJob = async (jobId) => {
     if (!window.confirm("Are you sure you want to delete this job?")) return;
 
@@ -131,7 +126,6 @@ function JobBoard() {
     }
   };
   
-  // Handle file upload
   const handleResumeChange = (e) => {
     const file = e.target.files[0];
     if (file && file.type === "application/pdf") {
@@ -142,7 +136,6 @@ function JobBoard() {
     }
   };
 
-  // Handle job application - IMPROVED VERSION
   const handleApply = async (e) => {
     e.preventDefault();
     
@@ -160,13 +153,6 @@ function JobBoard() {
       formData.append("resume", resume);
       formData.append("jobId", selectedJob._id);
 
-      console.log("Submitting application with data:", {
-        name: applicantName,
-        email: applicantEmail,
-        jobId: selectedJob._id,
-        resumeName: resume.name
-      });
-
       const response = await axios.post(
         "/api/jobs/apply", 
         formData, 
@@ -178,7 +164,6 @@ function JobBoard() {
         }
       );
 
-      console.log("Application response:", response.data);
       toast.success("Application submitted successfully!");
       setIsApplyModalOpen(false);
       setApplicantName("");
@@ -190,9 +175,6 @@ function JobBoard() {
       console.error("Application error:", error);
       
       if (error.response) {
-        console.log("Error response data:", error.response.data);
-        console.log("Error status:", error.response.status);
-        
         if (error.response.status === 401) {
           toast.error("Authentication failed. Please login again.");
         } else if (error.response.status === 400) {
@@ -218,18 +200,18 @@ function JobBoard() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <Nav />
-      <ToastContainer position="top-right" autoClose={3000} />
+      <ToastContainer position="top-right" autoClose={3000} theme="dark" />
 
       {/* Header Section */}
-      <div className="bg-white/10 backdrop-blur-md border-b border-white/20 mt-[80px]">
+      <div className="bg-gradient-to-br from-slate-800 to-slate-900 border-b border-slate-700 mt-[80px]">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-white mb-2 bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
+            <h1 className="text-4xl font-bold text-white mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
               Find Your Dream Job
             </h1>
-            <p className="text-white/80 text-lg">
+            <p className="text-gray-400 text-lg">
               Discover amazing opportunities from top companies
             </p>
           </div>
@@ -243,12 +225,12 @@ function JobBoard() {
                 placeholder="Search jobs..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-700 border border-slate-600 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
             </div>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl hover:from-pink-600 hover:to-purple-700 transform hover:scale-105 transition-all shadow-lg"
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 transform hover:scale-105 transition-all shadow-lg"
             >
               <Plus className="w-5 h-5" />
               Post New Job
@@ -264,11 +246,11 @@ function JobBoard() {
             {filteredJobs.map((job) => (
               <div
                 key={job._id}
-                className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:bg-white/20 hover:border-white/30 transition-all duration-300"
+                className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 border border-slate-700 hover:border-purple-500/50 transition-all duration-300 shadow-xl"
               >
                 <div className="flex items-start justify-between mb-4 gap-2">
-                  <div className="p-3 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl">
-                    <Briefcase className="w-6 h-6 text-purple-300" />
+                  <div className="p-3 bg-purple-500/20 rounded-xl">
+                    <Briefcase className="w-6 h-6 text-purple-400" />
                   </div>
                   {/* Apply & Delete Buttons */}
                   <div className="flex space-x-2">
@@ -277,13 +259,13 @@ function JobBoard() {
                             setSelectedJob(job);
                             setIsApplyModalOpen(true);
                         }}
-                        className="px-4 py-1 bg-green-500 hover:bg-green-600 text-white rounded-md text-sm transition-all"
+                        className="px-4 py-1 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-all font-medium"
                     >
                         Apply
                     </button>
                     <button
                         onClick={() => deleteJob(job._id)}
-                        className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm transition-all"
+                        className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-all font-medium"
                     >
                         Delete
                     </button>
@@ -292,15 +274,15 @@ function JobBoard() {
                 <h3 className="text-xl font-bold text-white mb-2">
                   {job.title}
                 </h3>
-                <div className="flex items-center gap-2 text-white/80 mb-2">
-                  <Building className="w-4 h-4" />
+                <div className="flex items-center gap-2 text-gray-300 mb-2">
+                  <Building className="w-4 h-4 text-purple-400" />
                   <span>{job.company}</span>
                 </div>
-                <div className="flex items-center gap-2 text-white/80 mb-3">
-                  <MapPin className="w-4 h-4" />
+                <div className="flex items-center gap-2 text-gray-300 mb-3">
+                  <MapPin className="w-4 h-4 text-purple-400" />
                   <span>{job.location}</span>
                 </div>
-                <p className="text-white/70 text-sm line-clamp-3 mb-4">
+                <p className="text-gray-400 text-sm line-clamp-3 mb-4">
                   {job.description}
                 </p>
               </div>
@@ -308,23 +290,26 @@ function JobBoard() {
           </div>
         ) : (
           <div className="text-center py-16">
-            <p className="text-white/60 text-lg mb-2">No jobs found</p>
-            <p className="text-white/40">Try adjusting your search terms</p>
+            <div className="w-20 h-20 bg-slate-700 rounded-full mx-auto mb-4 flex items-center justify-center">
+              <Briefcase className="w-10 h-10 text-gray-500" />
+            </div>
+            <p className="text-gray-400 text-lg mb-2">No jobs found</p>
+            <p className="text-gray-500">Try adjusting your search terms</p>
           </div>
         )}
       </div>
 
       {/* Add Job Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl w-full max-w-lg p-6 relative border border-slate-700">
             <button
               onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100"
+              className="absolute top-4 right-4 p-2 rounded-full hover:bg-slate-700 transition-colors"
             >
-              <X className="w-5 h-5 text-gray-600" />
+              <X className="w-5 h-5 text-gray-400" />
             </button>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">
+            <h2 className="text-2xl font-bold text-white mb-4">
               Post a New Job
             </h2>
             <div className="space-y-4">
@@ -333,39 +318,39 @@ function JobBoard() {
                 placeholder="Job Title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:outline-none"
               />
               <input
                 type="text"
                 placeholder="Company Name"
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
-                className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:outline-none"
               />
               <input
                 type="text"
                 placeholder="Location"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:outline-none"
               />
               <textarea
                 placeholder="Job Description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows="4"
-                className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:outline-none resize-none"
               />
               <div className="flex gap-3">
                 <button
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-3 border rounded-lg text-gray-700 hover:bg-gray-100"
+                  className="flex-1 py-3 border border-slate-600 rounded-lg text-gray-300 hover:bg-slate-700 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={addJob}
-                  className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700"
+                  className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all font-medium"
                 >
                   Post Job
                 </button>
@@ -377,24 +362,25 @@ function JobBoard() {
 
       {/* Apply Job Modal */}
       {isApplyModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+            <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl w-full max-w-lg p-6 relative border border-slate-700">
               <button
                   onClick={() => setIsApplyModalOpen(false)}
-                  className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100"
+                  className="absolute top-4 right-4 p-2 rounded-full hover:bg-slate-700 transition-colors"
               >
-                  <X className="w-5 h-5 text-gray-600" />
+                  <X className="w-5 h-5 text-gray-400" />
               </button>
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">
-                  Apply for {selectedJob?.title} at {selectedJob?.company}
+              <h2 className="text-2xl font-bold text-white mb-4">
+                  Apply for {selectedJob?.title}
               </h2>
+              <p className="text-gray-400 mb-6">at {selectedJob?.company}</p>
               <form className="space-y-4" onSubmit={handleApply}>
                   <input
                       type="text"
                       placeholder="Your Name"
                       value={applicantName}
                       onChange={(e) => setApplicantName(e.target.value)}
-                      className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                      className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                       required
                   />
                   <input
@@ -402,16 +388,19 @@ function JobBoard() {
                       placeholder="Your Email"
                       value={applicantEmail}
                       onChange={(e) => setApplicantEmail(e.target.value)}
-                      className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                      className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                       required
                   />
-                  <div className="relative flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-lg text-center">
+                  <div className="relative flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-600 rounded-lg text-center bg-slate-700/50 hover:border-purple-500 transition-colors">
                       {resume ? (
-                          <p className="text-green-600">Resume uploaded: {resume.name}</p>
+                          <div className="flex items-center gap-2">
+                              <Upload className="w-5 h-5 text-green-400" />
+                              <p className="text-green-400 font-medium">{resume.name}</p>
+                          </div>
                       ) : (
                           <>
                               <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                              <p className="text-gray-500 text-sm">
+                              <p className="text-gray-400 text-sm">
                                   Upload your resume (PDF only)
                               </p>
                           </>
@@ -429,14 +418,14 @@ function JobBoard() {
                       <button
                           type="button"
                           onClick={() => setIsApplyModalOpen(false)}
-                          className="flex-1 py-3 border rounded-lg text-gray-700 hover:bg-gray-100"
+                          className="flex-1 py-3 border border-slate-600 rounded-lg text-gray-300 hover:bg-slate-700 transition-colors"
                       >
                           Cancel
                       </button>
                       <button
                           type="submit"
                           disabled={isApplying}
-                          className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium"
                       >
                           {isApplying ? "Submitting..." : "Submit Application"}
                       </button>

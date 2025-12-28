@@ -20,6 +20,7 @@ function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUs
   const localVideoTrackRef = useRef(null);
   const durationIntervalRef = useRef(null);
   const socketRef = useRef(null);
+  const callTimeoutRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -27,11 +28,16 @@ function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUs
     console.log('📞 VideoCallModal opened');
     console.log('   Recipient ID:', recipientId);
     console.log('   Current User ID:', currentUserId);
+    console.log('   Server URL:', SERVER_URL);
 
-    // ✅ Initialize Socket
+    // ✅ Initialize Socket with better error handling
     socketRef.current = io(SERVER_URL, {
       withCredentials: true,
-      transports: ['websocket', 'polling']
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 3,
+      timeout: 10000
     });
 
     const socket = socketRef.current;
@@ -40,7 +46,16 @@ function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUs
       console.log('📞 Video socket connected:', socket.id);
       const token = localStorage.getItem('token') || '';
       const email = localStorage.getItem('email') || '';
-      socket.emit('join', { userId: currentUserId, token, email });
+      
+      // ✅ Wait a bit before emitting to ensure connection is stable
+      setTimeout(() => {
+        socket.emit('join', { userId: currentUserId, token, email });
+      }, 100);
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('❌ Socket connection error:', error.message);
+      setCallStatus('connection-failed');
     });
 
     socket.on('callRinging', (data) => {
@@ -51,6 +66,9 @@ function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUs
     socket.on('callAccepted', (data) => {
       console.log('✅ Call accepted by recipient', data);
       setCallStatus('connected');
+      if (callTimeoutRef.current) {
+        clearTimeout(callTimeoutRef.current);
+      }
     });
 
     socket.on('callRejected', (data) => {
@@ -77,6 +95,9 @@ function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUs
       if (socketRef.current) {
         socketRef.current.disconnect();
       }
+      if (callTimeoutRef.current) {
+        clearTimeout(callTimeoutRef.current);
+      }
     };
   }, [isOpen]);
 
@@ -102,6 +123,21 @@ function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUs
     try {
       console.log('📞 Initializing call...');
       console.log('🌐 Backend URL:', SERVER_URL);
+
+      // ✅ Wait for socket to be connected
+      if (!socketRef.current?.connected) {
+        console.log('⏳ Waiting for socket connection...');
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Socket connection timeout'));
+          }, 5000);
+          
+          socketRef.current.once('connect', () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+        });
+      }
 
       // ✅ Get Agora Token
       const response = await fetch(`${SERVER_URL}/api/agora/token`, {
@@ -160,11 +196,12 @@ function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUs
       await client.publish([audioTrack, videoTrack]);
       console.log('✅ Published tracks');
 
-      // ✅ Send call signal via Socket.io
+      // ✅ Send call signal via Socket.io with retry
       if (socketRef.current && socketRef.current.connected) {
         const email = localStorage.getItem('email') || '';
         
         console.log('📤 Sending call signal...');
+        
         socketRef.current.emit('callUser', {
           userToCall: recipientId,
           from: currentUserId,
@@ -178,11 +215,22 @@ function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUs
             profileImage: ''
           }
         });
+        
         console.log('📤 Call signal sent');
         setCallStatus('ringing');
+        
+        // ✅ Set timeout for no answer (30 seconds)
+        callTimeoutRef.current = setTimeout(() => {
+          if (callStatus === 'ringing') {
+            console.log('⏰ Call timeout - no answer');
+            alert('No answer. Please try again later.');
+            handleEndCall();
+          }
+        }, 30000);
+        
       } else {
         console.error('❌ Socket not connected!');
-        throw new Error('Socket connection failed');
+        throw new Error('Socket connection failed. Please check your internet connection.');
       }
 
       // ✅ Handle remote user
@@ -241,6 +289,9 @@ function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUs
       if (durationIntervalRef.current) {
         clearInterval(durationIntervalRef.current);
       }
+      if (callTimeoutRef.current) {
+        clearTimeout(callTimeoutRef.current);
+      }
       
       console.log('✅ Cleanup complete');
     } catch (error) {
@@ -293,6 +344,7 @@ function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUs
             {callStatus === 'ringing' && '📞 Ringing...'}
             {callStatus === 'connected' && `⏱️ ${formatDuration(callDuration)}`}
             {callStatus === 'ended' && '📴 Call Ended'}
+            {callStatus === 'connection-failed' && '❌ Connection Failed'}
           </p>
         </div>
 
@@ -320,6 +372,12 @@ function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUs
                 {callStatus === 'connecting' && 'Connecting...'}
                 {callStatus === 'ringing' && 'Calling...'}
                 {callStatus === 'ended' && 'Call ended'}
+                {callStatus === 'connection-failed' && (
+                  <>
+                    <span className="block text-red-400">Connection failed</span>
+                    <span className="block text-sm mt-2">Please check your internet</span>
+                  </>
+                )}
               </p>
             </div>
           )}

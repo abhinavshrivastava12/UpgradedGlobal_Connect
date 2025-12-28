@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Send, Bot, User, Minimize2, Sparkles } from "lucide-react";
+import axios from 'axios';
 
 function AIChat() {
   const [messages, setMessages] = useState([
@@ -42,47 +43,38 @@ function AIChat() {
     try {
       console.log('📨 Sending AI request:', currentInput);
       
-      // ✅ Replace this with your actual API call:
-      // const response = await fetch("/api/ai/get-res", {
-      //   method: "POST",
-      //   headers: {
-      //     "Content-Type": "application/json",
-      //     "Authorization": `Bearer ${yourToken}`
-      //   },
-      //   body: JSON.stringify({ code: currentInput })
-      // });
-      // const res = await response.json();
-      
-      // Simulated API response (replace with your actual API)
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      const res = {
-        data: {
-          reply: {
-            reply: "I'm here to help! I can assist you with networking, finding jobs, messaging, creating posts, and managing your profile. What would you like to know more about?"
-          }
-        }
+      const token = localStorage.getItem('token');
+      const config = {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        withCredentials: true
       };
 
-      console.log('✅ AI Response received:', res.data);
+      // ✅ FIXED: Correct API endpoint
+      const response = await axios.post(
+        '/api/ai/get-res',
+        { code: currentInput },
+        config
+      );
 
-      // Parse AI response
+      console.log('✅ AI Response received:', response.data);
+      setIsTyping(false);
+
+      // ✅ Parse AI response correctly
       let aiText = "";
-      if (res.data?.reply?.reply && typeof res.data.reply.reply === 'string') {
-        aiText = res.data.reply.reply;
-      } else if (res.data?.reply && typeof res.data.reply === 'string') {
-        aiText = res.data.reply;
-      } else if (res.data?.message && typeof res.data.message === 'string') {
-        aiText = res.data.message;
-      } else if (res.data?.data?.reply && typeof res.data.data.reply === 'string') {
-        aiText = res.data.data.reply;
-      } else if (typeof res.data === 'string') {
-        aiText = res.data;
+      if (response.data?.reply) {
+        aiText = response.data.reply;
+      } else if (response.data?.message) {
+        aiText = response.data.message;
+      } else if (typeof response.data === 'string') {
+        aiText = response.data;
       } else {
         aiText = "I'm here to help! What would you like to know about Global Connect?";
       }
 
       console.log('✅ Extracted AI text:', aiText);
-      setIsTyping(false);
 
       // ✅ NON-BLOCKING typing animation
       const aiMessageId = Date.now() + Math.random();
