@@ -209,6 +209,52 @@ function ChatWindow() {
     scrollToBottom();
   }, [messages.length]);
 
+const handleVideoCallClick = async () => {
+  console.log('📹 Video call button clicked');
+  
+  // ✅ Check permissions first
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert('Your browser does not support video calls.\n\nPlease use Chrome, Firefox, or Safari.');
+      return;
+    }
+
+    // Request permission
+    console.log('🎥 Checking camera/microphone permissions...');
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+      video: true, 
+      audio: true 
+    });
+    
+    // Stop the test stream
+    stream.getTracks().forEach(track => track.stop());
+    console.log('✅ Permissions granted, starting call...');
+    
+    // Now open the video call modal
+    setShowVideoCall(true);
+    
+  } catch (error) {
+    console.error('❌ Permission check failed:', error);
+    
+    let errorMessage = 'Camera/Microphone access is required for video calls.';
+    
+    if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+      errorMessage = '📹 Camera/Microphone Permission Needed\n\n';
+      errorMessage += 'To make video calls, please:\n\n';
+      errorMessage += '1️⃣ Click the camera icon in your browser address bar\n';
+      errorMessage += '2️⃣ Select "Allow" for camera and microphone\n';
+      errorMessage += '3️⃣ Refresh the page and try again\n\n';
+      errorMessage += '💡 On mobile: Check your browser app permissions in phone settings';
+    } else if (error.name === 'NotFoundError') {
+      errorMessage = '❌ No camera or microphone found on your device';
+    } else if (error.name === 'NotReadableError') {
+      errorMessage = '⚠️ Camera or microphone is already in use by another app. Please close other apps and try again.';
+    }
+    
+    alert(errorMessage);
+  }
+};
+
   const handleSelectUser = (conv) => {
     setSelectedUser(conv.userInfo);
     setMessages([]);

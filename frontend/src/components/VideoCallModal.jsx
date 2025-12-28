@@ -124,6 +124,25 @@ function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUs
       console.log('📞 Initializing call...');
       console.log('🌐 Backend URL:', SERVER_URL);
 
+      // ✅ FIRST: Check permissions on mobile
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          // Request permission early
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: true, 
+            audio: true 
+          });
+          // Stop the test stream immediately
+          stream.getTracks().forEach(track => track.stop());
+          console.log('✅ Permissions pre-check passed');
+        } catch (permError) {
+          console.error('❌ Permission pre-check failed:', permError);
+          alert('Camera/Microphone access is required for video calls.\n\nPlease allow access in your browser settings and try again.');
+          onClose();
+          return;
+        }
+      }
+
       // ✅ Wait for socket to be connected
       if (!socketRef.current?.connected) {
         console.log('⏳ Waiting for socket connection...');
@@ -181,8 +200,25 @@ function VideoCallModal({ isOpen, onClose, recipientId, recipientName, currentUs
       );
       console.log('✅ Joined Agora channel');
 
-      // ✅ Create local tracks
-      const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+      // ✅ Create local tracks with better permission handling
+      let audioTrack, videoTrack;
+      
+      try {
+        console.log('🎥 Requesting camera and microphone access...');
+        [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+        console.log('✅ Camera and microphone access granted');
+      } catch (permError) {
+        console.error('❌ Permission Error:', permError);
+        
+        if (permError.name === 'NotAllowedError' || permError.code === 'PERMISSION_DENIED') {
+          alert('Camera/Microphone permission denied!\n\nPlease:\n1. Click the camera icon in your browser address bar\n2. Allow camera and microphone access\n3. Reload the page and try again');
+          onClose();
+          return;
+        }
+        
+        throw permError;
+      }
+      
       localAudioTrackRef.current = audioTrack;
       localVideoTrackRef.current = videoTrack;
 
