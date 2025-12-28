@@ -53,13 +53,14 @@ io.on('connection', (socket) => {
       socket.userId = userId;
       socket.email = email;
       console.log('👤 User registered:', userId, 'Socket:', socket.id);
+      console.log('📊 Total online users:', userSocketMap.size);
       
       io.emit('onlineUsers', Array.from(userSocketMap.keys()));
       io.emit('active-users', Array.from(userSocketMap.keys()));
     }
   });
 
-  // ✅ IMPROVED: Message handling with better logging
+  // ✅ IMPROVED: Message handling
   socket.on('sendMessage', async (data) => {
     console.log('📨 Message received from', data.from, 'to', data.to);
     
@@ -133,46 +134,67 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ✅ IMPROVED: Video call handling
+  // ✅ FIXED: Video call handling
   socket.on('callUser', (data) => {
-  console.log('📞 Incoming call from:', data.from, 'to:', data.userToCall);
-  console.log('📞 Caller info:', data.callerInfo);
-  
-  const recipientSocketId = userSocketMap.get(data.userToCall);
-  console.log('📞 Recipient socket:', recipientSocketId);
-  
-  if (recipientSocketId) {
-    // ✅ FIX: Emit to specific socket
-    io.to(recipientSocketId).emit('incomingCall', {
-      signal: data.signalData,
-      from: data.from,
-      callerInfo: data.callerInfo
-    });
-    console.log('✅ Call notification sent successfully');
+    console.log('📞 ========== INCOMING CALL ==========');
+    console.log('📞 From:', data.from);
+    console.log('📞 To:', data.userToCall);
+    console.log('📞 Caller Info:', data.callerInfo);
+    console.log('📞 Signal Data:', data.signalData ? 'Present' : 'Missing');
+    console.log('📊 All online users:', Array.from(userSocketMap.keys()));
     
-    // ✅ NEW: Send confirmation to caller
-    const callerSocketId = userSocketMap.get(data.from);
-    if (callerSocketId) {
-      io.to(callerSocketId).emit('callRinging', {
-        to: data.userToCall
+    const recipientSocketId = userSocketMap.get(data.userToCall);
+    console.log('📞 Recipient socket ID:', recipientSocketId);
+    
+    if (recipientSocketId) {
+      console.log('✅ Sending call to recipient socket:', recipientSocketId);
+      
+      // ✅ Send to specific recipient
+      io.to(recipientSocketId).emit('incomingCall', {
+        signal: data.signalData,
+        from: data.from,
+        callerInfo: data.callerInfo || {
+          name: 'User',
+          profileImage: ''
+        }
       });
+      
+      // ✅ Send ringing confirmation to caller
+      const callerSocketId = userSocketMap.get(data.from);
+      if (callerSocketId) {
+        io.to(callerSocketId).emit('callRinging', {
+          to: data.userToCall,
+          status: 'ringing'
+        });
+        console.log('✅ Ringing confirmation sent to caller');
+      }
+      
+      console.log('✅ Call notification sent successfully');
+    } else {
+      console.log('❌ Recipient not online');
+      console.log('   Looking for user:', data.userToCall);
+      console.log('   Available users:', Array.from(userSocketMap.keys()));
+      
+      // ✅ Notify caller that user is unavailable
+      const callerSocketId = userSocketMap.get(data.from);
+      if (callerSocketId) {
+        io.to(callerSocketId).emit('callFailed', { 
+          message: 'User is not available',
+          reason: 'offline'
+        });
+        console.log('✅ Call failed notification sent to caller');
+      }
     }
-  } else {
-    console.log('❌ User not online');
-    const callerSocketId = userSocketMap.get(data.from);
-    if (callerSocketId) {
-      socket.emit('callFailed', { 
-        message: 'User is not available' 
-      });
-    }
-  }
-});
+    console.log('📞 ===================================');
+  });
 
   socket.on('answerCall', (data) => {
-    console.log('✅ Call answered by:', socket.userId);
+    console.log('✅ ========== CALL ANSWERED ==========');
+    console.log('✅ Answered by:', socket.userId);
+    console.log('✅ Answering to:', data.to);
     
     const callerSocketId = userSocketMap.get(data.to);
-    console.log('📞 Caller socket:', callerSocketId);
+    console.log('📞 Caller socket ID:', callerSocketId);
     
     if (callerSocketId) {
       io.to(callerSocketId).emit('callAccepted', {
@@ -180,23 +202,32 @@ io.on('connection', (socket) => {
         from: socket.userId
       });
       console.log('✅ Answer sent to caller');
+    } else {
+      console.log('❌ Caller not found');
     }
+    console.log('✅ ====================================');
   });
 
   socket.on('rejectCall', (data) => {
-    console.log('❌ Call rejected by:', socket.userId);
+    console.log('❌ ========== CALL REJECTED ==========');
+    console.log('❌ Rejected by:', socket.userId);
+    console.log('❌ Rejecting call from:', data.to);
     
     const callerSocketId = userSocketMap.get(data.to);
     if (callerSocketId) {
       io.to(callerSocketId).emit('callRejected', {
-        from: socket.userId
+        from: socket.userId,
+        reason: 'rejected'
       });
       console.log('✅ Rejection sent to caller');
     }
+    console.log('❌ ====================================');
   });
 
   socket.on('endCall', (data) => {
-    console.log('🔚 Call ended by:', socket.userId);
+    console.log('🔚 ========== CALL ENDED ==========');
+    console.log('🔚 Ended by:', socket.userId);
+    console.log('🔚 Ending call with:', data.to);
     
     const recipientSocketId = userSocketMap.get(data.to);
     if (recipientSocketId) {
@@ -205,6 +236,7 @@ io.on('connection', (socket) => {
       });
       console.log('✅ End call notification sent');
     }
+    console.log('🔚 ==================================');
   });
 
   socket.on('new-post', (post) => {
@@ -221,9 +253,11 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     if (socket.userId) {
       userSocketMap.delete(socket.userId);
+      console.log('❌ User disconnected:', socket.userId);
+      console.log('📊 Remaining online users:', userSocketMap.size);
+      
       io.emit('active-users', Array.from(userSocketMap.keys()));
       io.emit('onlineUsers', Array.from(userSocketMap.keys()));
-      console.log('❌ User disconnected:', socket.userId);
     }
   });
 });

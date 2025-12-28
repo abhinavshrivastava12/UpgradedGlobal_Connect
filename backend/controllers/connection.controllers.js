@@ -13,12 +13,10 @@ export const sendConnection= async (req,res)=>{
             return res.status(400).json({message:"you can not send request yourself"})
         }
 
-        // ✅ FIX: Check if user exists and connection array is initialized
         if(!user){
             return res.status(404).json({message:"User not found"})
         }
 
-        // ✅ FIX: Initialize connection array if undefined
         if(!user.connection){
             user.connection = []
         }
@@ -82,7 +80,6 @@ export const acceptConnection=async (req,res)=>{
         })
         await connection.save()
         
-        // ✅ FIX: Use $addToSet to prevent duplicates
         await User.findByIdAndUpdate(req.userId,{
             $addToSet:{connection:connection.sender._id}
         })
@@ -138,12 +135,10 @@ export const getConnectionStatus = async (req, res) => {
 
         let currentUser=await User.findById(currentUserId)
         
-        // ✅ FIX: Better null checking
         if (!currentUser) {
             return res.status(404).json({ message: "User not found" });
         }
 
-        // ✅ FIX: Initialize connection array if undefined
         if(!currentUser.connection){
             currentUser.connection = []
         }
@@ -175,10 +170,16 @@ export const getConnectionStatus = async (req, res) => {
     }
 };
 
+// ✅ FIXED: getCallStatus with better logging
 export const getCallStatus = async (req, res) => {
     try {
         const targetUserId = req.params.userId;
         const currentUserId = req.userId;
+
+        console.log('📞 Checking call status:');
+        console.log('   Current User:', currentUserId);
+        console.log('   Target User:', targetUserId);
+        console.log('   Online Users:', Array.from(userSocketMap.keys()));
 
         if (targetUserId === currentUserId) {
             return res.status(400).json({
@@ -187,8 +188,12 @@ export const getCallStatus = async (req, res) => {
             });
         }
 
+        // ✅ Check if user is online
         const targetSocketId = userSocketMap.get(targetUserId);
         const isOnline = !!targetSocketId;
+
+        console.log('   Target Socket ID:', targetSocketId);
+        console.log('   Is Online:', isOnline);
 
         if (!isOnline) {
             return res.json({
@@ -199,6 +204,7 @@ export const getCallStatus = async (req, res) => {
             });
         }
 
+        // ✅ Check if connected
         let currentUser;
         try {
             currentUser = await User.findById(currentUserId);
@@ -210,19 +216,21 @@ export const getCallStatus = async (req, res) => {
             });
         }
 
-        // ✅ FIX: Initialize connection array
         if(!currentUser.connection){
             currentUser.connection = []
         }
 
-        const available = isOnline;
+        const isConnected = currentUser.connection.includes(targetUserId);
+        console.log('   Is Connected:', isConnected);
 
+        // ✅ User is online and available for calls
         return res.json({
             success: true,
-            available,
-            online: isOnline,
-            connected: currentUser.connection.includes(targetUserId) || false,
-            lastSeen: isOnline ? new Date() : null
+            available: true,
+            online: true,
+            connected: isConnected,
+            socketId: targetSocketId, // For debugging
+            lastSeen: new Date()
         });
 
     } catch (error) {
@@ -282,7 +290,6 @@ export const getUserConnections = async (req, res) => {
             "firstName lastName userName profileImage headline connection"
         );
 
-        // ✅ FIX: Return empty array if no connections
         return res.status(200).json(user?.connection || []);
     } catch (error) {
         console.error("Error in getUserConnections controller:", error);
