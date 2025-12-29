@@ -1,5 +1,6 @@
 Global Connect - Professional Social Networking Platform
 A full-stack social networking application built with the MERN stack, featuring real-time messaging, video calls, job boards, and AI-powered assistance.
+
 📋 Table of Contents
 
 Features
@@ -84,7 +85,7 @@ Agora (optional, for video calls)
 
 🚀 Installation
 1. Clone the Repository
-bashgit clone https://github.com/yourusername/global-connect.git
+bashgit clone (https://github.com/abhinavshrivastava12/UpgradedGlobal_Connect).git
 cd global-connect
 2. Install Backend Dependencies
 bashcd backend
@@ -358,7 +359,7 @@ Update documentation as needed
 This project is licensed under the MIT License - see the LICENSE file for details.
 👥 Authors
 
-Your Name - Initial work - YourGitHub
+Abhinav Shrivastava - Initial work - https://github.com/abhinavshrivastava12
 
 🙏 Acknowledgments
 
@@ -370,7 +371,7 @@ Google for Generative AI
 All open-source contributors
 
 📞 Support
-For support, email support@globalconnect.com or open an issue on GitHub.
+For support, email abhinavshrivastava182@gmail.com or open an issue on GitHub.
 📊 Project Status
 This project is actively maintained. Last updated: December 2024
 
